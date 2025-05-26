@@ -1,22 +1,46 @@
 ---
-title: "intertidal-eDNA-SDMs-analyses"
+title: "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach"
 format: html
+embed-resources: true
 editor: visual
+author: Simons D-L, Hipperson H, Webb TJ, Spencer M, Mieszkowska N
+chunk_output_type: inline
+toc: true
+message: false
+warning: false
 ---
 
-## Quarto
+## Introduction
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+## Load packages
 
 ```{r}
-1 + 1
+#| label: load-packages
+#| echo: true
+#| results: false
+
+packages <- c("devtools",
+              "qiime2R", #github download
+              "microbiome", #github download
+              "tidyverse",
+              "vegan",
+              "ggforce",
+              "phyloseq",
+              "cowplot",
+              "geosphere",
+              'lme4',
+              "car",
+              "sf")
+
+new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+
+invisible(lapply(packages, library, character.only = TRUE))
 ```
 
-You can add options to executable code like this
+## Importing data and tidying
 
 ```{r}
 #| echo: false
