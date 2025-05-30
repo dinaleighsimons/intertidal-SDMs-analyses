@@ -14,6 +14,8 @@ warning: false
 
 This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
+Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide.
+
 ## Set-up
 
 ### Load packages
@@ -38,7 +40,17 @@ packages <- c("devtools",
               "pROC", #ROC and AUC for model validation 
               "ncdf4",
               "raster",
-              "lubridate")
+              "lubridate",
+              "terra",
+              "geodata",
+              "predicts",
+              "sdmpredictors",
+              "tidyterra",
+              "exactextractr",
+              "arrow",
+              "here",
+              "emodnet.wfs",
+              "EMODnetWCS") #github
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -309,7 +321,11 @@ download_data <- function(period, variable, parameter,
 }
 ```
 
-### Importing occurrence data
+## Occurrence data
+
+### Import eDNA and visual occurences
+
+Let's first read in our occurrences and metadata.
 
 ```{r}
 #| label: import-data
@@ -332,14 +348,15 @@ species_list <- c(
   "Chthamalus montagui",
   "Perforatus perforatus",
   "Patella depressa",
-  "Bifurcaria bifurcata"
+  "Bifurcaria bifurcata",
+  "Asterias rubens"
 )
 
 occurance_data_reduced <- occurance_data %>% filter(taxa %in% species_list)
 str(occurance_data_reduced)
 ```
 
-Split into species at range edges for combined and individual methods.
+Split into species of interest for combined and individual methods.
 
 ```{r}
 #| label: filter-species-of-interest
@@ -377,26 +394,275 @@ max_lat <- ceiling(max(occurance_data_reduced$decimalLatitude))
 min_lat <- floor(min(occurance_data_reduced$decimalLatitude))
 max_lon <- ceiling(max(occurance_data_reduced$decimalLongitude))
 min_lon <- floor(min(occurance_data_reduced$decimalLongitude))
+
+# Store boundaries in a single extent object
+geographic_extent <- ext(x = c(min_lon, max_lon, min_lat, max_lat))
+uk_extent <- ext(-11, 2, 49.5, 61)  # Westernmost to easternmost, southernmost to northernmost
 ```
 
-### Importing environmental data (from OCLE)
+### Import GBIF occurrences
 
-Current and future temperature.
+We can also get occurenes from GBIF.
 
 ```{r}
-#| label: get-SST
+#| label: download-from-GBIF-semibalanus
 
-# Get average sea temperatures for 2000 - 2010 (yearly)
+# Semibalanus
+semibalanus_GBIF_obs <- geodata::sp_occurrence("semibalanus", "balanoides", geo=TRUE, ext = uk_extent)
+dups <- duplicated(semibalanus_GBIF_obs[, c('lon', 'lat')])
+semibalanus_GBIF_obs_nodups <- semibalanus_GBIF_obs[!dups, ]
+semibalanus_GBIF_obs_nodups_recent <- subset(semibalanus_GBIF_obs_nodups, year >= 2020)
+dim(semibalanus_GBIF_obs_nodups_recent)
+  
+# Phorcus
+phorcus_GBIF_obs <- geodata::sp_occurrence("phorcus", "lineatus", geo=TRUE, ext = uk_extent)
+dups <- duplicated(phorcus_GBIF_obs[, c('lon', 'lat')])
+phorcus_GBIF_obs_nodups <- phorcus_GBIF_obs[!dups, ]
+phorcus_GBIF_obs_nodups_recent <- subset(phorcus_GBIF_obs_nodups, year >= 2020)
+
+# Chthamalus
+chthamalus_GBIF_obs <- geodata::sp_occurrence("chthamalus", "montagui", geo=TRUE, ext = uk_extent)
+dups <- duplicated(chthamalus_GBIF_obs[, c('lon', 'lat')])
+chthamalus_GBIF_obs_nodups <- chthamalus_GBIF_obs[!dups, ]
+chthamalus_GBIF_obs_nodups_recent <- subset(chthamalus_GBIF_obs_nodups, year >= 2020)
+
+# Perforatus perforatus
+perforatus_GBIF_obs <- geodata::sp_occurrence("perforatus", "perforatus", geo=TRUE, ext = uk_extent)
+dups <- duplicated(perforatus_GBIF_obs[, c('lon', 'lat')])
+perforatus_GBIF_obs_nodups <- perforatus_GBIF_obs[!dups, ]
+perforatus_GBIF_obs_nodups_recent <- subset(perforatus_GBIF_obs_nodups, year >= 2020)
+
+# Patella depressa
+patella_GBIF_obs <- geodata::sp_occurrence("patella", "depressa", geo=TRUE, ext = uk_extent)
+dups <- duplicated(patella_GBIF_obs[, c('lon', 'lat')])
+patella_GBIF_obs_nodups <- patella_GBIF_obs[!dups, ]
+patella_GBIF_obs_nodups_recent <- subset(patella_GBIF_obs_nodups, year >= 2020)
+
+# Bifurcaria bifurcata
+bifurcaria_GBIF_obs <- geodata::sp_occurrence("Bifurcaria", "bifurcata", geo=TRUE, ext = uk_extent)
+dups <- duplicated(bifurcaria_GBIF_obs[, c('lon', 'lat')])
+bifurcaria_GBIF_obs_nodups <- bifurcaria_GBIF_obs[!dups, ]
+bifurcaria_GBIF_obs_nodups_recent <- subset(bifurcaria_GBIF_obs_nodups, year >= 2020)
+
+# asterias rubens
+star_GBIF_obs <- geodata::sp_occurrence("asterias", "rubens", geo=TRUE, ext = uk_extent)
+dups <- duplicated(star_GBIF_obs[, c('lon', 'lat')])
+star_GBIF_obs_nodups <- star_GBIF_obs[!dups, ]
+star_GBIF_obs_nodups_recent <- subset(star_GBIF_obs_nodups, year >= 2020)
+```
+
+### Visualize occurrences
+
+```{r}
+#| label: plot-occurance-GBIF-data-semibalanus
+
+wrld <- world(path=".")
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(semibalanus_GBIF_obs_nodups_recent$lon, semibalanus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+
+# add my points
+points(x = semibalanus_balanoides_obs_both_methods$decimalLongitude, 
+       y = semibalanus_balanoides_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-phorcus
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(phorcus_GBIF_obs_nodups_recent$lon, phorcus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+
+# add my points
+points(x = phorcus_lineatus_obs_both_methods$decimalLongitude, 
+       y = phorcus_lineatus_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-chthamalus
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(chthamalus_GBIF_obs_nodups_recent$lon, chthamalus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+
+# add my points
+points(x = chthamalus_montagui_obs_both_methods$decimalLongitude, 
+       y = chthamalus_montagui_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-perforatus
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(perforatus_GBIF_obs_nodups_recent$lon, perforatus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+
+# add my points
+points(x = perforatus_perforatus_obs_both_methods$decimalLongitude, 
+       y = perforatus_perforatus_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-patella
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(patella_GBIF_obs_nodups_recent$lon, patella_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+
+# add my points
+points(x = patella_depressa_obs_both_methods$decimalLongitude, 
+       y = patella_depressa_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-Bifurcaria
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(bifurcaria_GBIF_obs_nodups_recent$lon, bifurcaria_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20) # this looks wrong
+
+# add my points
+points(x = bifurcaria_bifurcata_obs_both_methods$decimalLongitude, 
+       y = bifurcaria_bifurcata_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+```{r}
+#| label: plot-occurance-GBIF-data-asterias
+
+plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+
+# add the GBIF points
+points(star_GBIF_obs_nodups_recent$lon, star_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20) # this looks wrong
+
+# add my points
+points(x = asterias_rubens_obs_both_methods$decimalLongitude, 
+       y = asterias_rubens_obs_both_methods$decimalLatitude, 
+       col = "red", 
+       pch = 20, 
+       cex = 0.75)
+```
+
+### Sampling bias
+
+```{r}
+
+# make a SpatVector
+semibalanus_spat <- vect(semibalanus_GBIF_obs_nodups_recent, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
+class(semibalanus_spat)
+
+# create a SpatRaster with the extent of acgeo
+r <- rast(semibalanus_spat)
+
+# set the resolution of the cells to (for example) 1 degree
+res(r) <- 1
+
+# extend (expand) the extent of the SpatRaster a little
+r <- extend(r, ext(r)+1)
+
+# sample:
+set.seed(13)
+acsel <- spatSample(semibalanus_spat, size=1, "random", strata=r)
+
+# to illustrate the method and show the result
+p <- as.polygons(r)
+plot(p, border='gray')
+points(acv)
+points(acsel, cex=1, col='red', pch='x') # selected points in red
+```
+
+## Absence and presence points (background points)
+
+Let's sample background points within a radius of presence points (as seen in VanDerWal et al, 2009).
+
+***Grey points*** are a random sample of 1000 points taken from within 30km around presence points. One point is sampled per raster cell to avoid spatial bias. These represent **candidate pseudo-absence locations** i.e. background points from within the accessible area.
+
+***Blue points*** are a subset of the grey points. These are points whose raster cell center falls within the buffer circles. They represent **final valid** **pseudo-absences**.
+
+```{r}
+#| label: sample-psudo-absences
+
+# circles with a radius of 30 km
+x <- buffer(semibalanus_spat, 30000)
+pol <- aggregate(x)
+
+# take a random sample of points within the polygons. 
+# We only want one point per grid cell, sampling randomly from all circles
+set.seed(999)
+samp1 <- spatSample(pol, 1000, "random")
+
+# no raster cells multiple times
+pcells <- cells(r, samp1)
+pcells <- unique(pcells[,2]) # remote duplicates
+xy <- xyFromCell(r, pcells) # back to coordinates
+
+# choose to select only those cells that have centers within circles
+spxy <- vect(xy, crs="+proj=longlat +datum=WGS84")
+xyInside <- intersect(spxy, x)
+
+# plots to inspect results
+plot(pol, axes=TRUE)
+points(samp1, pch="+", cex=.5)
+points(xyInside, cex=0.75, pch=20, col='blue')
+```
+
+## Environmental data
+
+It's time to find environmental variables of interest. OCLE (<https://ocle.ihcantabria.com/>) provides meteo-oceanographic data for UK coastal communities, some of which are projected under future climate change scenarios.
+
+### Sea surface temperature
+
+```{r}
+#| label: get-SST-current
+
+# Get average sea temperatures for 2022
 download_data(
   period = "Historical",
   variable = "SST",
   parameter = "Mean",
-  temporal_resolution = "yearly",
-  year_or_season = 2000-2020,
+  temporal_resolution = "summer",
   save_path = "Processed_Data/Current_Enviro_Data",
-  output_format = "csv",
-  return_object = TRUE
+  output_format = "nc"
 )
+
+# set uk extent and colours
+uk_extent <- extent(-11, 2, 49.5, 61)
+cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
+
+#read in
+SST_current_summer = raster("Processed_Data/Current_Enviro_Data/SST_Mean_summer_.nc")
+SST_current_summer_UK <- crop(SST_current_summer, uk_extent)
+
+# plot
+plot(SST_current_summer_UK, col = cols, main = "Sea Surface Temperature (Summer)")
+```
+
+```{r}
+#| label: get-SST-projected
 
 # Get average sea temperatures projected for 2100 (yearly)
 download_data(
@@ -407,25 +673,42 @@ download_data(
   year_or_season = 2100,
   scenario = "SSP585", # high emission
   save_path = "Processed_Data/Projected_Enviro_Data",
-  output_format = "csv"
+  output_format = "nc"
 )
+
+# read in and tidy
+SST_projected = raster("Processed_Data/Projected_Enviro_Data/SST_Mean_2100_SSP585.nc")
+SST_projected_UK <- crop(SST_projected, uk_extent)
+plot(SST_projected_UK, col = cols, main = "Sea Surface Temperature (Projected)")
 ```
 
-Current and future air temperature
+### Air temperature
 
 ```{r}
+#| label: get-airtemp-current
+#| eval: false
+#| include: false
 
-# Get average air temperatures for 2000 - 2010 (yearly)
+# Get average air temperatures for 2000 - 2020 (yearly)
 download_data(
   period = "Historical",
   variable = "AirTemperature",
   parameter = "Mean",
-  temporal_resolution = "yearly",
-  year_or_season = 2000-2020,
+  temporal_resolution = "summer",
   save_path = "Processed_Data/Current_Enviro_Data",
-  output_format = "csv",
-  return_object = TRUE
+  output_format = "nc"
 )
+
+#read in
+airtemp_current_summer = raster("Processed_Data/Current_Enviro_Data/AirTemperature_Mean_summer_.nc")
+airtemp_current_summer_UK <- crop(airtemp_current_summer, uk_extent)
+
+# plot
+plot(airtemp_current_summer_UK, col = cols, main = "Air Temperature (Summer)")
+```
+
+```{r}
+#| label: get-airtemp-projected
 
 # Get average air temperatures projected for 2100 (yearly)
 download_data(
@@ -436,6 +719,125 @@ download_data(
   year_or_season = 2100,
   scenario = "SSP585",
   save_path = "Processed_Data/Projected_Enviro_Data",
-  output_format = "csv"
+  output_format = "nc"
 )
+
+#read in
+airtemp_projected = raster("Processed_Data/Projected_Enviro_Data/AirTemperature_Mean_2100_SSP585.nc")
+airtemp_projected_UK <- crop(airtemp_projected, uk_extent)
+
+# plot
+plot(airtemp_projected_UK, col = cols, main = "Air Temperature (Projected)")
 ```
+
+### Seabed habitat (substrate)
+
+```{r}
+#| label: get-emodnet-seabed-data
+
+# import (1-min)
+eusm23_total <- st_read(
+  here::here("Processed_Data/Current_Enviro_Data/", "EUSeaMap_2023.gdb"),
+  query =
+    "select ModelCode, EUNIS2019C, EUNIS2019D, Shape_Area
+                  #from \"EUSeaMap_2023\" "
+) %>% filter(EUNIS2019C != "Na")
+
+# rasterise (2.5 mins)
+r_template <- rast(ext(eusm23_total), resolution = 0.0052, crs = "EPSG:4326")
+eusm_r <- rasterize_polygons(eusm23_total, r_template)
+
+# write output
+writeRaster(eusm_r, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
+```
+
+```{r}
+#| label: tidy-emodnet-seabed-data
+
+eusm_r <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
+
+eusm23_total <- eusm23_total %>%
+  mutate(polygon_id = row_number()) %>%
+  select(polygon_id, everything())
+
+# 2km rasterization
+r_template <- rast(ext(eusm23_total), resolution = 0.0208, crs = "EPSG:4326")
+# create the raster
+eusm_r_2km <- rasterize_polygons(eusm23_total, r_template)
+# write to file
+writeRaster(eusm_r_2km, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_2km.tif"))
+
+# 12km rasterization
+r_template <- rast(ext(eusm23_total), resolution = 0.1248, crs = "EPSG:4326")
+# create the raster
+eusm_r_12km <- rasterize_polygons(eusm23_total, r_template)
+# write to file
+writeRaster(eusm_r_12km, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_12km.tif"))
+```
+
+```{r}
+#| label: reload-emodnet-seabed-data
+
+# rasterised habitat data at full (~0.5km) and coarse resolutions
+eusm_r <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
+eusm_r_2km <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_2km.tif"))
+eusm_r_12km <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_12km.tif"))
+```
+
+```{r}
+#| label: explore-emodnet-seabed-data
+
+# Summary of the raster
+eusm_r_2km
+
+# Get metadata
+ext(eusm_r_2km) # Spatial extent
+res(eusm_r_2km) # Resolution
+
+#crop
+eusm_uk_2km <- crop(eusm_r_2km, uk_extent)
+
+#inspect
+plot(eusm_uk_2km)
+```
+
+```{r}
+
+# service information 
+services <- emodnet_wfs()
+class(services)
+names(services)
+services[, c("emodnet_thematic_lot", "service_name")]
+
+# initialising a client is the first step to interacting with an EMODnet Web Feature Services
+wfs_geo <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
+
+# List contents of a WFS
+layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_geo)
+layer_info
+layers <- c("seabed_substrate_100k")
+
+# get the data
+emodnet_substrate <- emodnet_get_layers(wfs = wfs_geo,
+                                        layers = layers,
+                                        simplify = TRUE)
+unique(emodnet_substrate$country)
+emodnet_substrate_UK <- emodnet_substrate %>% filter(country == "Great Britain")
+
+#plot
+ggplot(emodnet_substrate_UK) +
+  geom_sf(aes(fill = folk_16cl_txt)) +
+  scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  coord_sf(crs = 4326) +
+  theme_minimal() +
+  labs(
+    title = "EMODnet Substrate Map - UK Region",
+    x = "Longitude", y = "Latitude"
+  )
+```
+
+## Model fitting
+
+## Model prediction
+
+## Model evaluation
