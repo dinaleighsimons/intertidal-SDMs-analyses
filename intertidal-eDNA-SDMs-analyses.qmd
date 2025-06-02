@@ -949,7 +949,7 @@ unique(emodnet_substrate$country)
 
 #plot
 ggplot(emodnet_substrate) +
-  geom_sf(aes(fill = folk_16cl_txt)) +
+  geom_sf(aes(fill = eunis_name)) +
   scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
   coord_sf(crs = 4326) +
   theme_minimal() +
