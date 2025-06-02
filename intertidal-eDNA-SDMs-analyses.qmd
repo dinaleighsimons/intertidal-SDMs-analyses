@@ -49,8 +49,9 @@ packages <- c("devtools",
               "exactextractr",
               "arrow",
               "here",
-              "emodnet.wfs",
-              "EMODnetWCS") #github
+              "emodnet.wfs", #github
+              "EMODnetWCS", #github
+              "biooracler") #github
 
 new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
 if(length(new.packages)) install.packages(new.packages)
@@ -62,7 +63,6 @@ invisible(lapply(packages, library, character.only = TRUE))
 
 ```{r}
 #| label: OCLE-function
-#| include: false
 
 # Function to download environmental information from OCLE database (https://ocle.ihcantabria.com/)
 
@@ -321,9 +321,59 @@ download_data <- function(period, variable, parameter,
 }
 ```
 
+```{r}
+#| label: get-nearest-coastline-function
+
+get_nearest_coastline <- function(environment_stack, occurance_data, condition) {
+  
+  # Get CRS from raster
+  raster_crs <- crs(environment_stack, proj = TRUE)
+  
+  # Create original points as SpatVector
+  points <- vect(occurance_data,
+                 geom = c("lon", "lat"),
+                 crs = raster_crs)
+  
+  # Extract environmental values at points
+  presvals <- extract(environment_stack, points)
+  
+  # Identify rows where all extracted values (except ID) are NA
+  na_rows <- which(apply(presvals[, -1], 1, function(x) all(is.na(x))))
+  
+  # Create mask for coastline cells (where condition == 1)
+  coastline_mask <- condition == 1
+  
+  # Extract points representing coastline cells
+  coastline_points <- as.points(coastline_mask, values = FALSE)
+  
+  # Extract coordinates from original points
+  coords <- crds(points)
+  
+  # For each NA point, find closest coastline point and replace coordinates
+  for (i in na_rows) {
+    this_point <- points[i]
+    dists <- distance(this_point, coastline_points)
+    nearest_idx <- which.min(dists)
+    nearest_coords <- crds(coastline_points[nearest_idx])
+    
+    coords[i, ] <- nearest_coords
+  }
+  
+  # Rebuild corrected SpatVector with updated coordinates
+  corrected_points <- vect(data.frame(occurance_data, coords),
+                           geom = c("x", "y"),
+                           crs = crs(points))
+  
+  # Extract environmental variables at corrected points
+  presvals_corrected <- extract(environment_stack, corrected_points)
+  
+  return(presvals_corrected)
+}
+```
+
 ## Occurrence data
 
-### Import eDNA and visual occurences
+### Import eDNA and visual occurrences
 
 Let's first read in our occurrences and metadata.
 
@@ -371,13 +421,22 @@ for (species in species_list) {
   clean <- clean_name(species)
   
   assign(paste0(clean, "_obs_both_methods"),
-         occurance_data_reduced %>% filter(taxa == species, pa == 1))
+         occurance_data_reduced %>%
+           filter(taxa == species, pa == 1) %>%
+           select(taxa, decimalLongitude, decimalLatitude) %>%
+           rename(lat = decimalLatitude, lon = decimalLongitude, species = taxa))
 
   assign(paste0(clean, "_obs_eDNA"),
-         occurance_data_reduced %>% filter(taxa == species, method == "eDNA", pa == 1))
-  
+         occurance_data_reduced %>%
+           filter(taxa == species, method == "eDNA", pa == 1) %>%
+           select(taxa, decimalLongitude, decimalLatitude) %>%
+           rename(lat = decimalLatitude, lon = decimalLongitude, species = taxa))
+
   assign(paste0(clean, "_obs_visual"),
-         occurance_data_reduced %>% filter(taxa == species, method == "Visual", pa == 1))
+         occurance_data_reduced %>%
+           filter(taxa == species, method == "Visual", pa == 1) %>%
+           select(taxa, decimalLongitude, decimalLatitude) %>%
+           rename(lat = decimalLatitude, lon = decimalLongitude, species = taxa))
 }
 
 # Check the data to make sure it loaded correctly
@@ -398,11 +457,14 @@ min_lon <- floor(min(occurance_data_reduced$decimalLongitude))
 # Store boundaries in a single extent object
 geographic_extent <- ext(x = c(min_lon, max_lon, min_lat, max_lat))
 uk_extent <- ext(-11, 2, 49.5, 61)  # Westernmost to easternmost, southernmost to northernmost
+
+# plot features
+wrld <- world(path=".")
 ```
 
 ### Import GBIF occurrences
 
-We can also get occurenes from GBIF.
+We can also other occurrences from GBIF.
 
 ```{r}
 #| label: download-from-GBIF-semibalanus
@@ -455,8 +517,6 @@ star_GBIF_obs_nodups_recent <- subset(star_GBIF_obs_nodups, year >= 2020)
 
 ```{r}
 #| label: plot-occurance-GBIF-data-semibalanus
-
-wrld <- world(path=".")
 
 plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
 
@@ -634,103 +694,164 @@ points(xyInside, cex=0.75, pch=20, col='blue')
 
 It's time to find environmental variables of interest. OCLE (<https://ocle.ihcantabria.com/>) provides meteo-oceanographic data for UK coastal communities, some of which are projected under future climate change scenarios.
 
-### Sea surface temperature
+To match the resolution of the projected estimates, we are going to download annual mean for each variable. Summer mean is available for historic periods, but not for projected periods.
 
 ```{r}
-#| label: get-SST-current
-
-# Get average sea temperatures for 2022
-download_data(
-  period = "Historical",
-  variable = "SST",
-  parameter = "Mean",
-  temporal_resolution = "summer",
-  save_path = "Processed_Data/Current_Enviro_Data",
-  output_format = "nc"
-)
+#| label: plot-features
 
 # set uk extent and colours
 uk_extent <- extent(-11, 2, 49.5, 61)
 cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
+```
 
-#read in
-SST_current_summer = raster("Processed_Data/Current_Enviro_Data/SST_Mean_summer_.nc")
-SST_current_summer_UK <- crop(SST_current_summer, uk_extent)
+### Temp, pH, terrain (Bio-ORCLE)
 
-# plot
-plot(SST_current_summer_UK, col = cols, main = "Sea Surface Temperature (Summer)")
+Bio-ORACLE is a comprehensive data set providing a wide range of marine environmental variables tailored for ecological and biogeographical analysis. These variables include surface and benthic values for parameters such as temperature, salinity, nutrients, oxygen, pH, and more, derived from satellite and modeled oceanographic data.
+
+We use the `biooracler` package here to obtain our environmental variables of interest from current and projected periods.
+
+```{r}
+#| label: variables-from-biooracle
+
+# explore layers
+biooracler_layers <- biooracler::list_layers()
+
+# example of selecting five variables from three datasets
+datasets <- list(
+
+  #air temps
+  list(dataset_id = "tas_baseline_2000_2020_depthsurf",
+       variables = "tas_mean",
+       constraints = 
+         list(#time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+              latitude = c(49.5, 61), longitude = c(-11, 2))),
+  
+  list(dataset_id = "tas_ssp585_2020_2100_depthsurf",
+       variables = "tas_mean",
+       constraints = 
+         list(#time = c('2020-01-01T00:00:00Z', '2090-01-01T00:00:00Z'), 
+              latitude = c(49.5, 61), longitude = c(-11, 2))),
+  
+  #ocean temps
+  list(dataset_id = "thetao_baseline_2000_2019_depthsurf",
+       variables = "thetao_mean",
+       constraints = list(
+         #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+         latitude = c(49.5, 61), longitude = c(-11, 2))), 
+  
+  list(dataset_id = "thetao_ssp585_2020_2100_depthsurf",
+       variables = "thetao_mean",
+       constraints = list(
+         #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+         latitude = c(49.5, 61), longitude = c(-11, 2))), 
+  
+  # pH
+  list(dataset_id = "ph_baseline_2000_2018_depthsurf",
+       variables = "ph_mean",
+       constraints = list(
+         #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+         latitude = c(49.5, 61), longitude = c(-11, 2))),
+  
+  list(dataset_id = "ph_ssp585_2020_2100_depthsurf",
+       variables = "ph_mean",
+       constraints = list(
+         #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+         latitude = c(49.5, 61), longitude = c(-11, 2))),
+  
+  list(dataset_id = "terrain_characteristics",
+       variables = "coastline",
+       constraints = list(
+         #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
+         latitude = c(49.5, 61), longitude = c(-11, 2)))
+  
+  )
+
+# download layers
+for (dataset in datasets) {
+  
+  dataset_id <- dataset$dataset_id
+  variables <- dataset$variables
+  constraints <- dataset$constraints
+  
+  layer <- download_layers(dataset_id, variables = variables, constraints = constraints)
+  
+  # Save using dataset_id
+  save_path <- file.path("Processed_Data/BIO-ORACLE", paste0(dataset_id, ".rds"))
+  saveRDS(layer, save_path)
+}
 ```
 
 ```{r}
-#| label: get-SST-projected
+#| label: read-and-explore-variables
 
-# Get average sea temperatures projected for 2100 (yearly)
-download_data(
-  period = "Projected",
-  variable = "SST",
-  parameter = "Mean",
-  temporal_resolution = "yearly",
-  year_or_season = 2100,
-  scenario = "SSP585", # high emission
-  save_path = "Processed_Data/Projected_Enviro_Data",
-  output_format = "nc"
+## ocean temp
+ocean_temp_present = readRDS("Processed_Data/BIO-ORACLE/thetao_baseline_2000_2019_depthsurf.rds")
+plot(
+  ocean_temp_present,
+  col = cols
 )
 
-# read in and tidy
-SST_projected = raster("Processed_Data/Projected_Enviro_Data/SST_Mean_2100_SSP585.nc")
-SST_projected_UK <- crop(SST_projected, uk_extent)
-plot(SST_projected_UK, col = cols, main = "Sea Surface Temperature (Projected)")
-```
-
-### Air temperature
-
-```{r}
-#| label: get-airtemp-current
-#| eval: false
-#| include: false
-
-# Get average air temperatures for 2000 - 2020 (yearly)
-download_data(
-  period = "Historical",
-  variable = "AirTemperature",
-  parameter = "Mean",
-  temporal_resolution = "summer",
-  save_path = "Processed_Data/Current_Enviro_Data",
-  output_format = "nc"
+ocean_temp_projected = readRDS("Processed_Data/BIO-ORACLE/thetao_ssp585_2020_2100_depthsurf.rds")
+plot(
+  ocean_temp_projected,
+  col = cols
 )
 
-#read in
-airtemp_current_summer = raster("Processed_Data/Current_Enviro_Data/AirTemperature_Mean_summer_.nc")
-airtemp_current_summer_UK <- crop(airtemp_current_summer, uk_extent)
+## air temp
+air_temp_present = readRDS("Processed_Data/BIO-ORACLE/tas_baseline_2000_2020_depthsurf.rds")
+plot(
+  air_temp_present,
+  col = cols
+)
 
-# plot
-plot(airtemp_current_summer_UK, col = cols, main = "Air Temperature (Summer)")
+air_temp_projected = readRDS("Processed_Data/BIO-ORACLE/tas_ssp585_2020_2100_depthsurf.rds")
+plot(
+  air_temp_projected,
+  col = cols
+)
+
+## ph
+ph_present = readRDS("Processed_Data/BIO-ORACLE/ph_baseline_2000_2018_depthsurf.rds")
+plot(ph_present,
+     col = cols)
+
+ph_projected = readRDS("Processed_Data/BIO-ORACLE/ph_ssp585_2020_2100_depthsurf.rds")
+plot(ph_projected,
+     col = cols)
+
+# terrain
+terrain <- readRDS("Processed_Data/BIO-ORACLE/terrain_characteristics.rds")
+plot(terrain,
+     main = "Terrain")
 ```
 
 ```{r}
-#| label: get-airtemp-projected
+#| label: create-stack
 
-# Get average air temperatures projected for 2100 (yearly)
-download_data(
-  period = "Projected",
-  variable = "AirTemperature",
-  parameter = "Mean",
-  temporal_resolution = "yearly",
-  year_or_season = 2100,
-  scenario = "SSP585",
-  save_path = "Processed_Data/Projected_Enviro_Data",
-  output_format = "nc"
-)
+enviro_vars_current <- stack(
+  c(ocean_temp_present,
+    air_temp_present,
+    ph_present,
+    terrain
+    ))
 
-#read in
-airtemp_projected = raster("Processed_Data/Projected_Enviro_Data/AirTemperature_Mean_2100_SSP585.nc")
-airtemp_projected_UK <- crop(airtemp_projected, uk_extent)
+plot(enviro_vars_current) # plots each decade
 
-# plot
-plot(airtemp_projected_UK, col = cols, main = "Air Temperature (Projected)")
+enviro_vars_projected <- stack(
+  c(ocean_temp_projected,
+    air_temp_projected,
+    ph_projected,
+    terrain
+    ))
+
+plot(enviro_vars_projected) # plots each decade
 ```
 
-### Seabed habitat (substrate)
+### Rocky substrate (EMODnet)
+
+We can get habitat data from EMODnet.
+
+#### Tom's code
 
 ```{r}
 #| label: get-emodnet-seabed-data
@@ -801,43 +922,135 @@ eusm_uk_2km <- crop(eusm_r_2km, uk_extent)
 plot(eusm_uk_2km)
 ```
 
+#### Import straight from emodnet_wfs
+
 ```{r}
+#| label: import-from-emodnet_wfs
 
 # service information 
 services <- emodnet_wfs()
-class(services)
-names(services)
 services[, c("emodnet_thematic_lot", "service_name")]
 
 # initialising a client is the first step to interacting with an EMODnet Web Feature Services
 wfs_geo <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
+wfs_seabed <- emodnet_init_wfs_client(service =  "seabed_habitats_general_datasets_and_products")
 
 # List contents of a WFS
-layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_geo)
+layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_seabed)
 layer_info
-layers <- c("seabed_substrate_100k")
+layers <- c("ukseamap_latest_habitats")
 
 # get the data
-emodnet_substrate <- emodnet_get_layers(wfs = wfs_geo,
+emodnet_substrate <- emodnet_get_layers(wfs = wfs_seabed,
                                         layers = layers,
                                         simplify = TRUE)
 unique(emodnet_substrate$country)
-emodnet_substrate_UK <- emodnet_substrate %>% filter(country == "Great Britain")
+#emodnet_substrate_UK <- emodnet_substrate %>% filter(country == "Great Britain")
 
 #plot
-ggplot(emodnet_substrate_UK) +
+ggplot(emodnet_substrate) +
   geom_sf(aes(fill = folk_16cl_txt)) +
   scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
   coord_sf(crs = 4326) +
   theme_minimal() +
   labs(
-    title = "EMODnet Substrate Map - UK Region",
+    title = "EMODnet Habitat Map",
     x = "Longitude", y = "Latitude"
   )
 ```
 
+### Visualize occurrence over variables
+
+```{r}
+
+# second layer of the SpatRaster (current ocean temp)
+
+# we do not need the first column
+semibalanus_balanoides_obs_both_methods  <- semibalanus_balanoides_obs_both_methods[,-1]
+
+patella_depressa_obs_both_methods <- patella_depressa_obs_both_methods[,-1]
+
+# semibalanus
+plot(enviro_vars_current, 2, col = cols)
+lines(wrld)
+points(semibalanus_balanoides_obs_both_methods,
+       col='blue')
+
+# patella
+plot(enviro_vars_current, 2, col = cols)
+lines(wrld)
+points(patella_depressa_obs_both_methods,
+       col='blue')
+```
+
+### Extract value of predictors at occurrence points
+
+We use the `extract` function from the `raster` package.
+
+```{r}
+#| label: extract-values
+
+#extract
+presvals_semibalanus <- extract(enviro_vars_current, semibalanus_balanoides_obs_both_methods) 
+
+head(presvals_semibalanus)
+```
+
+We can see that some points are being treated as land rather than sea (we've got quite a few NAs). We need to find the closest point which is classed as coastline and use that instead.
+
+```{r}
+#| label: correct-points
+
+# call function we created eariler to correct points
+presvals_semibalanus_corrected <- get_nearest_coastline(
+  enviro_vars_current,
+  semibalanus_balanoides_obs_both_methods,
+  terrain)
+
+# remove the ID variable
+presvals_semibalanus_corrected <- presvals_semibalanus_corrected[,-1]
+```
+
+```{r}
+
+# setting random seed to always create the same
+# random set of points for this example
+set.seed(0)
+backgr <- spatSample(enviro_vars_current, 500, "random", as.points=TRUE, na.rm=TRUE)
+absvals <- values(backgr)
+pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
+sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
+head(sdmdata)
+tail(sdmdata)
+summary(sdmdata)
+```
+
+### Check co-linearity
+
+```{r}
+#| label: check-colinearity
+
+pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
+pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
+```
+
 ## Model fitting
 
+```{r}
+
+m1 <- glm(pb ~ thetao_mean_2 + ph_mean_2, data=sdmdata)
+class(m1)
+
+summary(m1)
+```
+
 ## Model prediction
+
+```{r}
+
+bc <- envelope(presvals_semibalanus_corrected[,c("thetao_mean_2", "ph_mean_2")])
+bc
+
+```
 
 ## Model evaluation
