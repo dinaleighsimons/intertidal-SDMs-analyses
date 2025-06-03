@@ -647,28 +647,6 @@ plot(terrain,
      main = "Terrain")
 ```
 
-```{r}
-#| label: create-stack
-
-enviro_vars_current <- stack(
-  c(ocean_temp_present,
-    air_temp_present,
-    ph_present,
-    terrain
-    ))
-
-plot(enviro_vars_current) # plots each decade
-
-enviro_vars_projected <- stack(
-  c(ocean_temp_projected,
-    air_temp_projected,
-    ph_projected,
-    terrain
-    ))
-
-plot(enviro_vars_projected) # plots each decade
-```
-
 ### Rocky substrate (EMODnet)
 
 We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODnet servers. Documentation for this service is [here](https://docs.ropensci.org/emodnet.wfs/).
@@ -757,7 +735,33 @@ rock_ukash_plot <- ggplot(rock_ukash) +
     x = "Longitude", y = "Latitude"
   ) + theme(legend.position = "none")
 
+rock_ukash_plot
+
 ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
+```
+
+### Create stack
+
+```{r}
+#| label: create-stack
+
+enviro_vars_current <- stack(
+  c(ocean_temp_present,
+    air_temp_present,
+    ph_present,
+    terrain
+    ))
+
+plot(enviro_vars_current) # plots each decade
+
+enviro_vars_projected <- stack(
+  c(ocean_temp_projected,
+    air_temp_projected,
+    ph_projected,
+    terrain
+    ))
+
+plot(enviro_vars_projected) # plots each decade
 ```
 
 ### Visualize occurrence over variables
@@ -823,10 +827,19 @@ head(presvals_semibalanus_corrected)
 set.seed(0)
 
 enviro_vars_current_rast <- rast(enviro_vars_current)
-backgr <- spatSample(enviro_vars_current_rast, 500, "random", as.points=TRUE, na.rm=TRUE)
+
+backgr <- spatSample(enviro_vars_current_rast,
+                     500,
+                     "random",
+                     as.points = TRUE,
+                     na.rm = TRUE)
+
 absvals <- values(backgr)
+
 pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
+
 sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
+
 head(sdmdata)
 tail(sdmdata)
 summary(sdmdata)
@@ -860,6 +873,15 @@ summary(m1)
 bc <- envelope(presvals_semibalanus_corrected[,c("thetao_mean_2", "ph_mean_2")])
 bc
 
+pr <- partialResponse(bc, presvals_semibalanus_corrected, "thetao_mean_2")
+plot(pr[[1]], type="l")
+```
+
+```{r}
+
+names(enviro_vars_current_rast)
+p <- predict(enviro_vars_current_rast, m1)
+plot(p) # obviously this need to be restircted to rocky areas
 ```
 
 ## Model evaluation
