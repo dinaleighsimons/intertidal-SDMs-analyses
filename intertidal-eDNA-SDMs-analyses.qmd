@@ -12,7 +12,7 @@ warning: false
 
 ## Introduction
 
-This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
+This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi data set approach".
 
 Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide.
 
@@ -62,272 +62,15 @@ invisible(lapply(packages, library, character.only = TRUE))
 ### Functions
 
 ```{r}
-#| label: OCLE-function
-
-# Function to download environmental information from OCLE database (https://ocle.ihcantabria.com/)
-
-# Predefined available variables for each period
-available_variables_historical <- c("pH", "Wind", "TidalRange", "ShearStress", "Salinity", "SST", "PAR", "Nitrate", "MHW", "MCS", "Hs", "Currents", "BottomOrbitalSpeed", "AttenuationCoefficient", "AirTemperature")
-available_variables_projected <- c("pH", "Wind", "Salinity", "SST", "SLR", "Nitrates", "Hs", "AirTemperature")
-
-# Function to get available variables based on the selected period
-get_available_variables <- function(period) {
-  if (period == "Historical") {
-    return(available_variables_historical)
-  } else if (period == "Projected") {
-    return(available_variables_projected)
-  } else {
-    stop("Invalid period")
-  }
-}
-
-download_data <- function(period, variable, parameter,
-                         temporal_resolution, save_path,
-                         year_or_season = NULL,
-                         scenario = NULL,
-                         lat_max = NULL,
-                         lat_min = NULL,
-                         lon_min = NULL,
-                         lon_max = NULL,
-                         output_format = "nc",  # Options: "ascii", "nc", "csv", "rdata"
-                         return_object = TRUE
-                         ) {
-  
-  # Load required packages
-  if (!requireNamespace("ncdf4", quietly = TRUE)) install.packages("ncdf4")
-  if (!requireNamespace("httr", quietly = TRUE)) install.packages("httr")
-  if (!requireNamespace("raster", quietly = TRUE)) install.packages("raster")
-  library(ncdf4)
-  library(httr)
-  library(raster)
-  
-  # Ensure save path exists
-  if (!dir.exists(save_path)) dir.create(save_path, recursive = TRUE)
-  
-  #_________________________
-  # Validate output format
-  #_________________________
-  if (!output_format %in% c("ascii", "nc", "csv", "rdata")) {
-   stop("Invalid output_format. Choose 'ascii', 'nc', 'csv', or 'rdata'")
-  }
- 
-  # Construct URL
-  base_url <- "https://ihthredds.ihcantabria.com/thredds/fileServer/SIMULIT"
-  
-  if (period == "Historical") {
-    dataset_url <- paste0(base_url, "/",
-                          period, "/",
-                          variable, "/",
-                          variable, "_",
-                          ifelse(temporal_resolution == "range", "yearly",
-                                 ifelse(temporal_resolution == "full", "all", temporal_resolution)), 
-                          ".nc")
-  } else if (period == "Projected") {
-    dataset_url <- paste0(base_url, "/",
-                          period, "/",
-                          variable, "/",
-                          scenario, "/",#                          year_or_season,
-                          variable,# "_",
-                          ".nc")
-  } else {
-    stop("Invalid period")
-  }
-  
-  #_________________________
-  # Download file
-  #_________________________
-  temp_file <- tempfile(fileext = ".nc")
-  response <- GET(
-  dataset_url,
-  write_disk(temp_file, overwrite = TRUE),
-  config(followlocation = TRUE),  # Follow redirects (common in THREDDS)
-  timeout(3000000),                   # Increase timeout (default: 60s)
-  progress()
-  )
-  if (http_error(response)) stop("Failed to download file")
-  
-  # Open file
-  nc <- nc_open(temp_file)
-  on.exit({
-    nc_close(nc)
-    unlink(temp_file)
-  })
-  
-  #_________________________
-  # Get parameter name 
-  #_________________________
-  
-  if(variable =="MHW"|variable =="MCS"){
-    parameter <- variable
-  full_param_name <- variable
-   
-  }else{
-  full_param_name <- paste0(variable, "_", parameter)
-      if (!full_param_name %in% names(nc$var)) {
-    stop(paste("Parameter not found. Available parameters:",
-               paste(names(nc$var), collapse = ", ")))
-  }
-  }
-  
-
-  
-  #______________________________________________________________
-  # Handle time dimension differently for seasonal vs yearly data
-  #_________________________________________________________
-  if (temporal_resolution == "yearly"|temporal_resolution == "range") {
-
-    time_vals <- ncvar_get(nc, "time")
-    time_units <- ncatt_get(nc, "time", "units")$value
-
-    if (grepl("days since", time_units)) {
-      time_dates <- as.Date(sub(".*since ", "", time_units)) + time_vals
-    } else if (grepl("seconds since", time_units)) {
-      time_dates <- as.POSIXct(sub(".*since ", "", time_units), tz="UTC") + as.difftime(time_vals, units="secs")
-    } else {
-      stop("Unrecognized time format")
-    }
-
-    time_years <- as.integer(format(time_dates, "%Y"))
-    print(paste("Available years:", paste(unique(time_years), collapse=", ")))
-
-    #______________________________
-    # Selecting the required years 
-    #______________________________
-    if (length(year_or_season)== 1) {
-      year_index <- which(time_years == as.numeric(year_or_season))
-      if (length(year_index) == 0) stop("Requested year not available")
-      data <- ncvar_get(nc, full_param_name,
-                        start = c(1, 1, year_index),
-                        count = c(-1, -1, 1))
-    }else if(length(year_or_season) >1){
-     # For multiple years
-      year_indices <- which(time_years %in% year_or_season)
-      
-      # Get all the data for those years
-      data <- ncvar_get(nc, full_param_name, 
-                       start = c(1, 1, min(year_indices)), 
-                       count = c(-1, -1, length(year_indices)))
-            
-    } else {
-      data <- ncvar_get(nc, full_param_name)
-    }
-    
-  }else {
-    # Seasonal data - no time dimension to process
-    data <- ncvar_get(nc, full_param_name)
-  }
-   
-
-  #______________________________________________________
-  # Create output file
-  #______________________________________________________
-  lon <- ncvar_get(nc, "lon")
-  lat <- ncvar_get(nc, "lat")
-  
-  #________________________
-  # Filtering by dimensions 
-  #________________________
-  if (!is.null(lat_max) || !is.null(lat_min) || !is.null(lon_min) || !is.null(lon_max)) {
-    
-    # Set defaults if NULL (entire range)
-    if (is.null(lat_max)) lat_max <- max(lat)
-    if (is.null(lat_min)) lat_min <- min(lat)
-    if (is.null(lon_max)) lon_max <- max(lon)
-    if (is.null(lon_min)) lon_min <- min(lon)
-    
-    # Find indices for subsetting
-    lat_indices <- which(lat >= lat_min & lat <= lat_max)
-    lon_indices <- which(lon >= lon_min & lon <= lon_max)
-    lon <- lon[lon_indices]
-    lat <- lat[lat_indices]
-    
-  if(period == "Projected"){
-    data <- data[lon_indices, lat_indices,]  
-  }else{
-        # Because year adds another dimension
-    if (length(year_or_season)== 1) {
-      data <- data[lon_indices, lat_indices]  
-    }else if(length(year_or_season) >1){
-      data <- data[lon_indices, lat_indices,]  
-    }
-    
-  }
-
-    
-  }
-  
-   #______________________________________________
-    # Creating the raster with the correct rotation 
-    #_______________________________________________
-    if (period == "Projected") { #Create raster with 90-degree counter-clockwise rotation
-      rotated_matrix <- t(data)[ncol(data):1,]  # Rotate 90 degrees left
-      r <- raster(rotated_matrix,
-                  xmn = min(lon), xmx = max(lon),
-                  ymn = min(lat), ymx = max(lat),
-                  crs = CRS("+proj=longlat +datum=WGS84"))
-    }
-    if (period == "Historical" & temporal_resolution != "yearly") {
-      rotated_matrix <- t(data)[,nrow(data):1]  # Simple right rotation
-      r <- raster(rotated_matrix,
-                  xmn = min(lon), xmx = max(lon),
-                  ymn = min(lat), ymx = max(lat),
-                  crs = CRS("+proj=longlat +datum=WGS84"))
-      r <-  flip(r, direction = 'x')
-    }
-    
-    if (period == "Historical" & temporal_resolution == "yearly") {
-      # Rotate the matrix and create the raster
-      rotated_matrix <- t(data)[ncol(data):1,]  # Rotate 90 degrees left
-      r <- raster(rotated_matrix,
-                  xmn = min(lon), xmx = max(lon),
-                  ymn = min(lat), ymx = max(lat),
-                  crs = CRS("+proj=longlat +datum=WGS84"))
-    }
-    
-    # Create filename
-    fname_base <- paste0(
-      variable, 
-      if (!variable %in% c("MHW", "MCS", "SLR")) paste0("_", parameter) else "",
-      "_",
-      if (period == "Historical" && temporal_resolution == "yearly") "yearly_" else "",
-      if (period != "Projected") paste0(temporal_resolution, "_") else "",  # Add temporal_resolution if not Projected
-      year_or_season,
-      if (period == "Projected") paste0("_", scenario) else ""
-    )
-  
-  #_________________________________________
-  # Output handling based on user selection
-  #_________________________________________
-  if (output_format == "ascii") {
-    raster::writeRaster(r, file.path(save_path, paste0(fname_base , ".asc")), format = "ascii", overwrite = TRUE)
-  } else if (output_format == "nc") {
-    raster::writeRaster(r, file.path(save_path, paste0(fname_base, ".nc")), format = "CDF", overwrite = TRUE)
-  } else {
-    df <- as.data.frame(r, xy = TRUE)
-    colnames(df) <- c("lon", "lat", "value")
-    
-    if (output_format == "csv") {
-      write.csv(df, file.path(save_path, paste0(fname_base, ".csv")), row.names = FALSE)
-    } else if (output_format == "rdata") {
-      save(df, file = file.path(save_path, paste0(fname_base, ".RData")))
-    }
-  }
-  
-  if (return_object) {
-    if (output_format %in% c("ascii", "nc")) return(r) else return(df)
-  } else {
-    return(invisible(NULL))
-  }
-}
-```
-
-```{r}
 #| label: get-nearest-coastline-function
 
 get_nearest_coastline <- function(environment_stack, occurance_data, condition) {
   
+  # convert to Spatraster
+  env_terra <- rast(environment_stack)
+  
   # Get CRS from raster
-  raster_crs <- crs(environment_stack, proj = TRUE)
+  raster_crs <- crs(env_terra, proj = TRUE)
   
   # Create original points as SpatVector
   points <- vect(occurance_data,
@@ -335,7 +78,7 @@ get_nearest_coastline <- function(environment_stack, occurance_data, condition) 
                  crs = raster_crs)
   
   # Extract environmental values at points
-  presvals <- extract(environment_stack, points)
+  presvals <- extract(env_terra, points)
   
   # Identify rows where all extracted values (except ID) are NA
   na_rows <- which(apply(presvals[, -1], 1, function(x) all(is.na(x))))
@@ -365,7 +108,7 @@ get_nearest_coastline <- function(environment_stack, occurance_data, condition) 
                            crs = crs(points))
   
   # Extract environmental variables at corrected points
-  presvals_corrected <- extract(environment_stack, corrected_points)
+  presvals_corrected <- extract(env_terra, corrected_points)
   
   return(presvals_corrected)
 }
@@ -381,10 +124,10 @@ Let's first read in our occurrences and metadata.
 #| label: import-data
 
 # occurance data
-occurance_data <- read.csv(file = "Input_Data/combined_methods_long_data.csv", row.names = 1)
+occurance_data <- read.csv(file = "Data/Occurrence_data/my_dataset/combined_methods_long_data.csv", row.names = 1)
 
 # get lat long from meta data
-metadata <- read.csv(file = "Input_Data/metadata.csv", na.strings = c(""))
+metadata <- read.csv(file = "Data/Metadata/metadata.csv", na.strings = c(""))
 metadata <- metadata %>%
   subset(select = c(localityID, exposure, decimalLongitude, decimalLatitude)) %>% unique() %>% na.omit()
 
@@ -464,53 +207,79 @@ wrld <- world(path=".")
 
 ### Import GBIF occurrences
 
-We can also other occurrences from GBIF.
+We can also other occurrences from GBIF. These have been \# for now to save time and memory. They have been loaded directly in.
 
 ```{r}
 #| label: download-from-GBIF-semibalanus
 
+minYear = 2020
+
 # Semibalanus
-semibalanus_GBIF_obs <- geodata::sp_occurrence("semibalanus", "balanoides", geo=TRUE, ext = uk_extent)
-dups <- duplicated(semibalanus_GBIF_obs[, c('lon', 'lat')])
-semibalanus_GBIF_obs_nodups <- semibalanus_GBIF_obs[!dups, ]
-semibalanus_GBIF_obs_nodups_recent <- subset(semibalanus_GBIF_obs_nodups, year >= 2020)
-dim(semibalanus_GBIF_obs_nodups_recent)
+
+#semibalanus_GBIF_obs <- geodata::sp_occurrence("semibalanus", "balanoides", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(semibalanus_GBIF_obs[, c('lon', 'lat')])
+#semibalanus_GBIF_obs_nodups <- semibalanus_GBIF_obs[!dups, ]
+#semibalanus_GBIF_obs_nodups_recent <- subset(semibalanus_GBIF_obs_nodups, year >= minYear)
+#dim(semibalanus_GBIF_obs_nodups_recent)
+
+#write.csv(semibalanus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/semibalanus_",minYear,".csv", sep = ""))
+
+semibalanus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/semibalanus_2020.csv")
   
 # Phorcus
-phorcus_GBIF_obs <- geodata::sp_occurrence("phorcus", "lineatus", geo=TRUE, ext = uk_extent)
-dups <- duplicated(phorcus_GBIF_obs[, c('lon', 'lat')])
-phorcus_GBIF_obs_nodups <- phorcus_GBIF_obs[!dups, ]
-phorcus_GBIF_obs_nodups_recent <- subset(phorcus_GBIF_obs_nodups, year >= 2020)
+
+#phorcus_GBIF_obs <- geodata::sp_occurrence("phorcus", "lineatus", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(phorcus_GBIF_obs[, c('lon', 'lat')])
+#phorcus_GBIF_obs_nodups <- phorcus_GBIF_obs[!dups, ]
+##phorcus_GBIF_obs_nodups_recent <- subset(phorcus_GBIF_obs_nodups, year >= minYear)
+
+#write.csv(phorcus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/phorcus_",minYear,".csv", sep = ""))
+
+phorcus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/phorcus_2020.csv")
 
 # Chthamalus
-chthamalus_GBIF_obs <- geodata::sp_occurrence("chthamalus", "montagui", geo=TRUE, ext = uk_extent)
-dups <- duplicated(chthamalus_GBIF_obs[, c('lon', 'lat')])
-chthamalus_GBIF_obs_nodups <- chthamalus_GBIF_obs[!dups, ]
-chthamalus_GBIF_obs_nodups_recent <- subset(chthamalus_GBIF_obs_nodups, year >= 2020)
+
+#chthamalus_GBIF_obs <- geodata::sp_occurrence("chthamalus", "montagui", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(chthamalus_GBIF_obs[, c('lon', 'lat')])
+#chthamalus_GBIF_obs_nodups <- chthamalus_GBIF_obs[!dups, ]
+#chthamalus_GBIF_obs_nodups_recent <- subset(chthamalus_GBIF_obs_nodups, year >= minYear)
+
+#write.csv(chthamalus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/chthamalus_",minYear,".csv", sep = ""))
+
+chthamalus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/chthamalus_2020.csv")
 
 # Perforatus perforatus
-perforatus_GBIF_obs <- geodata::sp_occurrence("perforatus", "perforatus", geo=TRUE, ext = uk_extent)
-dups <- duplicated(perforatus_GBIF_obs[, c('lon', 'lat')])
-perforatus_GBIF_obs_nodups <- perforatus_GBIF_obs[!dups, ]
-perforatus_GBIF_obs_nodups_recent <- subset(perforatus_GBIF_obs_nodups, year >= 2020)
+
+#perforatus_GBIF_obs <- geodata::sp_occurrence("perforatus", "perforatus", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(perforatus_GBIF_obs[, c('lon', 'lat')])
+#perforatus_GBIF_obs_nodups <- perforatus_GBIF_obs[!dups, ]
+#perforatus_GBIF_obs_nodups_recent <- subset(perforatus_GBIF_obs_nodups, year >= minYear)
+
+#write.csv(perforatus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/perforatus_",minYear,".csv", sep = ""))
+
+perforatus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/perforatus_2020.csv")
 
 # Patella depressa
-patella_GBIF_obs <- geodata::sp_occurrence("patella", "depressa", geo=TRUE, ext = uk_extent)
-dups <- duplicated(patella_GBIF_obs[, c('lon', 'lat')])
-patella_GBIF_obs_nodups <- patella_GBIF_obs[!dups, ]
-patella_GBIF_obs_nodups_recent <- subset(patella_GBIF_obs_nodups, year >= 2020)
+
+#patella_GBIF_obs <- geodata::sp_occurrence("patella", "depressa", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(patella_GBIF_obs[, c('lon', 'lat')])
+#patella_GBIF_obs_nodups <- patella_GBIF_obs[!dups, ]
+#patella_GBIF_obs_nodups_recent <- subset(patella_GBIF_obs_nodups, year >= minYear)
+
+##write.csv(patella_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/patella_",minYear,".csv", sep = ""))
+
+patella_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/patella_2020.csv")
 
 # Bifurcaria bifurcata
-bifurcaria_GBIF_obs <- geodata::sp_occurrence("Bifurcaria", "bifurcata", geo=TRUE, ext = uk_extent)
-dups <- duplicated(bifurcaria_GBIF_obs[, c('lon', 'lat')])
-bifurcaria_GBIF_obs_nodups <- bifurcaria_GBIF_obs[!dups, ]
-bifurcaria_GBIF_obs_nodups_recent <- subset(bifurcaria_GBIF_obs_nodups, year >= 2020)
 
-# asterias rubens
-star_GBIF_obs <- geodata::sp_occurrence("asterias", "rubens", geo=TRUE, ext = uk_extent)
-dups <- duplicated(star_GBIF_obs[, c('lon', 'lat')])
-star_GBIF_obs_nodups <- star_GBIF_obs[!dups, ]
-star_GBIF_obs_nodups_recent <- subset(star_GBIF_obs_nodups, year >= 2020)
+#bifurcaria_GBIF_obs <- geodata::sp_occurrence("Bifurcaria", "bifurcata", geo=TRUE, ext = uk_extent)
+#dups <- duplicated(bifurcaria_GBIF_obs[, c('lon', 'lat')])
+#bifurcaria_GBIF_obs_nodups <- bifurcaria_GBIF_obs[!dups, ]
+#bifurcaria_GBIF_obs_nodups_recent <- subset(bifurcaria_GBIF_obs_nodups, year >= minYear)
+
+#write.csv(bifurcaria_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/bifurcaria_",minYear,".csv", sep = ""))
+
+bifurcaria_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/bifurcaria_2020.csv")
 ```
 
 ### Visualize occurrences
@@ -518,121 +287,172 @@ star_GBIF_obs_nodups_recent <- subset(star_GBIF_obs_nodups, year >= 2020)
 ```{r}
 #| label: plot-occurance-GBIF-data-semibalanus
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/semibalanus_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(semibalanus_GBIF_obs_nodups_recent$lon, semibalanus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
 
-# add my points
-points(x = semibalanus_balanoides_obs_both_methods$decimalLongitude, 
-       y = semibalanus_balanoides_obs_both_methods$decimalLatitude, 
+# Add GBIF points
+points(semibalanus_GBIF_clean$lon, 
+       semibalanus_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
+
+# Add your points
+points(x = semibalanus_balanoides_obs_both_methods$lon, 
+       y = semibalanus_balanoides_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
+
+# Close the device
+dev.off()
 ```
 
 ```{r}
 #| label: plot-occurance-GBIF-data-phorcus
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/phorcus_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(phorcus_GBIF_obs_nodups_recent$lon, phorcus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
 
-# add my points
-points(x = phorcus_lineatus_obs_both_methods$decimalLongitude, 
-       y = phorcus_lineatus_obs_both_methods$decimalLatitude, 
+# Add GBIF points
+points(phorcus_GBIF_clean$lon, 
+       phorcus_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
+
+# Add your points
+points(x = phorcus_lineatus_obs_both_methods$lon, 
+       y = phorcus_lineatus_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
+
+# Close the device
+dev.off()
 ```
 
 ```{r}
 #| label: plot-occurance-GBIF-data-chthamalus
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/chthamalus_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(chthamalus_GBIF_obs_nodups_recent$lon, chthamalus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
 
-# add my points
-points(x = chthamalus_montagui_obs_both_methods$decimalLongitude, 
-       y = chthamalus_montagui_obs_both_methods$decimalLatitude, 
+# Add GBIF points
+points(chthamalus_GBIF_clean$lon, 
+       chthamalus_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
+
+# Add your points
+points(x = chthamalus_montagui_obs_both_methods$lon, 
+       y = chthamalus_montagui_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
+
+# Close the device
+dev.off()
 ```
 
 ```{r}
 #| label: plot-occurance-GBIF-data-perforatus
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/perforatus_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(perforatus_GBIF_obs_nodups_recent$lon, perforatus_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
+
+# Add GBIF points
+points(perforatus_GBIF_clean$lon, 
+       perforatus_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
 
 # add my points
-points(x = perforatus_perforatus_obs_both_methods$decimalLongitude, 
-       y = perforatus_perforatus_obs_both_methods$decimalLatitude, 
+points(x = perforatus_perforatus_obs_both_methods$lon, 
+       y = perforatus_perforatus_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
+
+# Close the device
+dev.off()
 ```
 
 ```{r}
 #| label: plot-occurance-GBIF-data-patella
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/patella_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(patella_GBIF_obs_nodups_recent$lon, patella_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20)
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
+
+# Add GBIF points
+points(patella_GBIF_clean$lon, 
+       patella_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
 
 # add my points
-points(x = patella_depressa_obs_both_methods$decimalLongitude, 
-       y = patella_depressa_obs_both_methods$decimalLatitude, 
+points(x = patella_depressa_obs_both_methods$lon, 
+       y = patella_depressa_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
+
+# Close the device
+dev.off()
 ```
 
 ```{r}
 #| label: plot-occurance-GBIF-data-Bifurcaria
 
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
+# Set the file path and open the PNG device
+png(filename = paste("Figures/bifurcaria_occs_map_", minYear, ".png", sep = ""),
+    width = 800, height = 600)
 
-# add the GBIF points
-points(bifurcaria_GBIF_obs_nodups_recent$lon, bifurcaria_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20) # this looks wrong
+# Plot commands
+plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
+
+# Add GBIF points
+points(bifurcaria_GBIF_clean$lon, 
+       bifurcaria_GBIF_clean$lat, 
+       col = 'darkgrey', 
+       pch = 20)
 
 # add my points
-points(x = bifurcaria_bifurcata_obs_both_methods$decimalLongitude, 
-       y = bifurcaria_bifurcata_obs_both_methods$decimalLatitude, 
+points(x = bifurcaria_bifurcata_obs_both_methods$lon, 
+       y = bifurcaria_bifurcata_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
-```
 
-```{r}
-#| label: plot-occurance-GBIF-data-asterias
-
-plot(wrld, xlim=c(-11,3), ylim=c(49,61), col="light yellow", border="light gray")
-
-# add the GBIF points
-points(star_GBIF_obs_nodups_recent$lon, star_GBIF_obs_nodups_recent$lat, col='darkgrey', pch=20) # this looks wrong
-
-# add my points
-points(x = asterias_rubens_obs_both_methods$decimalLongitude, 
-       y = asterias_rubens_obs_both_methods$decimalLatitude, 
-       col = "red", 
-       pch = 20, 
-       cex = 0.75)
+# Close the device
+dev.off()
 ```
 
 ### Sampling bias
 
 ```{r}
+#| label: sampling-bias-points
 
 # make a SpatVector
-semibalanus_spat <- vect(semibalanus_GBIF_obs_nodups_recent, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
+semibalanus_spat <- vect(semibalanus_GBIF_clean, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
 class(semibalanus_spat)
 
 # create a SpatRaster with the extent of acgeo
@@ -651,7 +471,7 @@ acsel <- spatSample(semibalanus_spat, size=1, "random", strata=r)
 # to illustrate the method and show the result
 p <- as.polygons(r)
 plot(p, border='gray')
-points(acv)
+points(semibalanus_GBIF_clean)
 points(acsel, cex=1, col='red', pch='x') # selected points in red
 ```
 
@@ -667,7 +487,7 @@ Let's sample background points within a radius of presence points (as seen in Va
 #| label: sample-psudo-absences
 
 # circles with a radius of 30 km
-x <- buffer(semibalanus_spat, 30000)
+x <- raster::buffer(semibalanus_spat, 30000)
 pol <- aggregate(x)
 
 # take a random sample of points within the polygons. 
@@ -708,10 +528,12 @@ cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
 
 Bio-ORACLE is a comprehensive data set providing a wide range of marine environmental variables tailored for ecological and biogeographical analysis. These variables include surface and benthic values for parameters such as temperature, salinity, nutrients, oxygen, pH, and more, derived from satellite and modeled oceanographic data.
 
-We use the `biooracler` package here to obtain our environmental variables of interest from current and projected periods.
+We use the `biooracler` package here to obtain our environmental variables of interest from current and projected periods. We just load the datasets and skip running this code for now to save memory.
 
 ```{r}
 #| label: variables-from-biooracle
+#| eval: false
+#| include: false
 
 # explore layers
 biooracler_layers <- biooracler::list_layers()
@@ -785,42 +607,42 @@ for (dataset in datasets) {
 #| label: read-and-explore-variables
 
 ## ocean temp
-ocean_temp_present = readRDS("Processed_Data/BIO-ORACLE/thetao_baseline_2000_2019_depthsurf.rds")
+ocean_temp_present = readRDS("Data/Environmental_data/BIO-ORACLE/thetao_baseline_2000_2019_depthsurf.rds")
 plot(
   ocean_temp_present,
   col = cols
 )
 
-ocean_temp_projected = readRDS("Processed_Data/BIO-ORACLE/thetao_ssp585_2020_2100_depthsurf.rds")
+ocean_temp_projected = readRDS("Data/Environmental_data/BIO-ORACLE/thetao_ssp585_2020_2100_depthsurf.rds")
 plot(
   ocean_temp_projected,
   col = cols
 )
 
 ## air temp
-air_temp_present = readRDS("Processed_Data/BIO-ORACLE/tas_baseline_2000_2020_depthsurf.rds")
+air_temp_present = readRDS("Data/Environmental_data/BIO-ORACLE/tas_baseline_2000_2020_depthsurf.rds")
 plot(
   air_temp_present,
   col = cols
 )
 
-air_temp_projected = readRDS("Processed_Data/BIO-ORACLE/tas_ssp585_2020_2100_depthsurf.rds")
+air_temp_projected = readRDS("Data/Environmental_data/BIO-ORACLE/tas_ssp585_2020_2100_depthsurf.rds")
 plot(
   air_temp_projected,
   col = cols
 )
 
 ## ph
-ph_present = readRDS("Processed_Data/BIO-ORACLE/ph_baseline_2000_2018_depthsurf.rds")
+ph_present = readRDS("Data/Environmental_data/BIO-ORACLE/ph_baseline_2000_2018_depthsurf.rds")
 plot(ph_present,
      col = cols)
 
-ph_projected = readRDS("Processed_Data/BIO-ORACLE/ph_ssp585_2020_2100_depthsurf.rds")
+ph_projected = readRDS("Data/Environmental_data/BIO-ORACLE/ph_ssp585_2020_2100_depthsurf.rds")
 plot(ph_projected,
      col = cols)
 
 # terrain
-terrain <- readRDS("Processed_Data/BIO-ORACLE/terrain_characteristics.rds")
+terrain <- readRDS("Data/Environmental_data/BIO-ORACLE/terrain_characteristics.rds")
 plot(terrain,
      main = "Terrain")
 ```
@@ -849,80 +671,7 @@ plot(enviro_vars_projected) # plots each decade
 
 ### Rocky substrate (EMODnet)
 
-We can get habitat data from EMODnet.
-
-#### Tom's code
-
-```{r}
-#| label: get-emodnet-seabed-data
-
-# import (1-min)
-eusm23_total <- st_read(
-  here::here("Processed_Data/Current_Enviro_Data/", "EUSeaMap_2023.gdb"),
-  query =
-    "select ModelCode, EUNIS2019C, EUNIS2019D, Shape_Area
-                  #from \"EUSeaMap_2023\" "
-) %>% filter(EUNIS2019C != "Na")
-
-# rasterise (2.5 mins)
-r_template <- rast(ext(eusm23_total), resolution = 0.0052, crs = "EPSG:4326")
-eusm_r <- rasterize_polygons(eusm23_total, r_template)
-
-# write output
-writeRaster(eusm_r, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
-```
-
-```{r}
-#| label: tidy-emodnet-seabed-data
-
-eusm_r <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
-
-eusm23_total <- eusm23_total %>%
-  mutate(polygon_id = row_number()) %>%
-  select(polygon_id, everything())
-
-# 2km rasterization
-r_template <- rast(ext(eusm23_total), resolution = 0.0208, crs = "EPSG:4326")
-# create the raster
-eusm_r_2km <- rasterize_polygons(eusm23_total, r_template)
-# write to file
-writeRaster(eusm_r_2km, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_2km.tif"))
-
-# 12km rasterization
-r_template <- rast(ext(eusm23_total), resolution = 0.1248, crs = "EPSG:4326")
-# create the raster
-eusm_r_12km <- rasterize_polygons(eusm23_total, r_template)
-# write to file
-writeRaster(eusm_r_12km, filename = here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_12km.tif"))
-```
-
-```{r}
-#| label: reload-emodnet-seabed-data
-
-# rasterised habitat data at full (~0.5km) and coarse resolutions
-eusm_r <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_0-5.tif"))
-eusm_r_2km <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_2km.tif"))
-eusm_r_12km <- terra::rast(here::here("Processed_Data/Current_Enviro_Data/", "eusm_raster_12km.tif"))
-```
-
-```{r}
-#| label: explore-emodnet-seabed-data
-
-# Summary of the raster
-eusm_r_2km
-
-# Get metadata
-ext(eusm_r_2km) # Spatial extent
-res(eusm_r_2km) # Resolution
-
-#crop
-eusm_uk_2km <- crop(eusm_r_2km, uk_extent)
-
-#inspect
-plot(eusm_uk_2km)
-```
-
-#### Import straight from emodnet_wfs
+We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODnet servers. Documentation for this service is [here](https://docs.ropensci.org/emodnet.wfs/).
 
 ```{r}
 #| label: import-from-emodnet_wfs
@@ -932,36 +681,89 @@ services <- emodnet_wfs()
 services[, c("emodnet_thematic_lot", "service_name")]
 
 # initialising a client is the first step to interacting with an EMODnet Web Feature Services
-wfs_geo <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
+#wfs_geo <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
 wfs_seabed <- emodnet_init_wfs_client(service =  "seabed_habitats_general_datasets_and_products")
 
 # List contents of a WFS
 layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_seabed)
 layer_info
-layers <- c("ukseamap_latest_habitats")
+
+# get descripion
+layer_info %>%
+  filter(layer_name == "ukseamap_latest_habitats") %>%
+  pull(abstract) %>%
+  cat()
+
+# only UKASH Mosaic of Localised Maps includes intertidal zone
+
+# define layer
+layers <- c("ukseamap_latest_habitats") 
 
 # get the data
 emodnet_substrate <- emodnet_get_layers(wfs = wfs_seabed,
                                         layers = layers,
                                         simplify = TRUE)
+# explore the data
+emodnet_substrate
+unique(colnames(emodnet_substrate))
+unique(emodnet_substrate$eunis_name)
 unique(emodnet_substrate$country)
-#emodnet_substrate_UK <- emodnet_substrate %>% filter(country == "Great Britain")
 
-#plot
-ggplot(emodnet_substrate) +
-  geom_sf(aes(fill = eunis_name)) +
+# get hard rock only - no littoral :(
+rock_hard_substrate <- emodnet_substrate %>%
+  filter(str_detect(str_to_lower(eunis_name), "rock"))
+
+#plot (takes horrendously long)
+#ggplot(rock_hard_substrate) +
+  #geom_sf(aes(fill = eunis_name)) +
+  #scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  #coord_sf(crs = 4326) +
+  #theme_minimal() +
+  #labs(
+    #title = "EMODnet Habitat Map",
+    #x = "Longitude", y = "Latitude"
+  #)
+```
+
+Unfortunately, we couldn't get intertidal data from the above products. Let's try the JNCC UKASH Mosaic of Localized Maps which does include intertidal data, but only for 12% of the UK.
+
+```{r}
+#| label: read-in-UKASH-mosaic
+
+# Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
+gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
+
+# List available layers
+st_layers(gdb_path)
+
+# read in
+ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
+
+# explore
+print(ukash)
+
+# filter for rocky only
+rock_ukash <- ukash %>%
+  filter(str_detect(str_to_lower(OrigName), "rock"))
+
+# plot
+rock_ukash_plot <- ggplot(rock_ukash) +
+  geom_sf(aes(fill = OrigName)) +
   scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
   coord_sf(crs = 4326) +
   theme_minimal() +
   labs(
-    title = "EMODnet Habitat Map",
+    title = "UKASH Mosaic Localised Rock Habitat Map",
     x = "Longitude", y = "Latitude"
-  )
+  ) + theme(legend.position = "none")
+
+ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
 ### Visualize occurrence over variables
 
 ```{r}
+#| label: view-obs-on-temp
 
 # second layer of the SpatRaster (current ocean temp)
 
@@ -1009,6 +811,9 @@ presvals_semibalanus_corrected <- get_nearest_coastline(
 
 # remove the ID variable
 presvals_semibalanus_corrected <- presvals_semibalanus_corrected[,-1]
+
+# check the new data
+head(presvals_semibalanus_corrected)
 ```
 
 ```{r}
@@ -1016,7 +821,9 @@ presvals_semibalanus_corrected <- presvals_semibalanus_corrected[,-1]
 # setting random seed to always create the same
 # random set of points for this example
 set.seed(0)
-backgr <- spatSample(enviro_vars_current, 500, "random", as.points=TRUE, na.rm=TRUE)
+
+enviro_vars_current_rast <- rast(enviro_vars_current)
+backgr <- spatSample(enviro_vars_current_rast, 500, "random", as.points=TRUE, na.rm=TRUE)
 absvals <- values(backgr)
 pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
 sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
@@ -1033,6 +840,8 @@ summary(sdmdata)
 pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
 pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
 ```
+
+We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables.
 
 ## Model fitting
 
