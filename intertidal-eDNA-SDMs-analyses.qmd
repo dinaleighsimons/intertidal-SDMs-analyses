@@ -724,6 +724,8 @@ print(ukash)
 rock_ukash <- ukash %>%
   filter(str_detect(str_to_lower(OrigName), "rock"))
 
+rock_ukash_rast <- rast(rock_ukash)
+
 # plot
 rock_ukash_plot <- ggplot(rock_ukash) +
   geom_sf(aes(fill = OrigName)) +
@@ -749,7 +751,8 @@ enviro_vars_current <- stack(
   c(ocean_temp_present,
     air_temp_present,
     ph_present,
-    terrain
+    terrain,
+    rock_ukash_rast
     ))
 
 plot(enviro_vars_current) # plots each decade
