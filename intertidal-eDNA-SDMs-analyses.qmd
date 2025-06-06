@@ -12,7 +12,7 @@ warning: false
 
 ## Introduction
 
-This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi data set approach".
+This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
 Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide.
 
@@ -50,12 +50,14 @@ packages <- c("devtools",
               "arrow",
               "here",
               "emodnet.wfs", #github
-              "EMODnetWCS", #github
-              "biooracler") #github
+              "biooracler",#github
+              "biomod2") 
 
-new.packages <- packages[!(packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
+# Install any missing packages along with their dependencies
+new.packages <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(new.packages)) install.packages(new.packages, dependencies = TRUE)
 
+# Load all packages
 invisible(lapply(packages, library, character.only = TRUE))
 ```
 
@@ -121,7 +123,7 @@ get_nearest_coastline <- function(environment_stack, occurance_data, condition) 
 Let's first read in our occurrences and metadata.
 
 ```{r}
-#| label: import-data
+#| label: import-combined-data
 
 # occurance data
 occurance_data <- read.csv(file = "Data/Occurrence_data/my_dataset/combined_methods_long_data.csv", row.names = 1)
@@ -187,7 +189,7 @@ head(semibalanus_balanoides_obs_eDNA)
 ```
 
 ```{r}
-#| label: latlong-extent
+#| label: define-latlong-extent
 
 # Determine geographic extent of our data
 # find general latitudinal and longitudinal boundaries
@@ -200,6 +202,7 @@ min_lon <- floor(min(occurance_data_reduced$decimalLongitude))
 # Store boundaries in a single extent object
 geographic_extent <- ext(x = c(min_lon, max_lon, min_lat, max_lat))
 uk_extent <- ext(-11, 2, 49.5, 61)  # Westernmost to easternmost, southernmost to northernmost
+uk_extent_match <- ext(-10.8,2,49.4,60.8)
 
 # plot features
 wrld <- world(path=".")
@@ -280,6 +283,34 @@ patella_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/patella_2020.csv")
 #write.csv(bifurcaria_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/bifurcaria_",minYear,".csv", sep = ""))
 
 bifurcaria_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/bifurcaria_2020.csv")
+```
+
+### Create final data sets for model
+
+```{r}
+#| label: combining-data-sources-semibalanus
+
+# combined GBIF and Marclim
+semibalanus_GBIF_clean_reduced <- semibalanus_GBIF_clean %>% 
+  mutate(species = as.factor(species),
+         source = "GBIF") %>%
+  select(species, lat, lon, source)
+
+semibalanus_balanoides_obs_visual$source <- "MarClim"
+final_visual_semibalanus <- rbind(semibalanus_GBIF_clean_reduced, semibalanus_balanoides_obs_visual)
+
+# combining visual + eDNA
+semibalanus_balanoides_obs_eDNA$source <- "eDNA"
+final_combined_semibalanus <- rbind(final_visual_semibalanus, semibalanus_balanoides_obs_eDNA) # plused 26 observations
+```
+
+We now have two data sets for each species, one with MarClim + GBIF visual observations and one with all visual + eDNA.
+
+```{r}
+#| label: view-final-datasets
+
+final_visual_semibalanus
+final_combined_semibalanus
 ```
 
 ### Visualize occurrences
@@ -446,13 +477,13 @@ points(x = bifurcaria_bifurcata_obs_both_methods$lon,
 dev.off()
 ```
 
-### Sampling bias
+### Check for sampling bias
 
 ```{r}
 #| label: sampling-bias-points
 
 # make a SpatVector
-semibalanus_spat <- vect(semibalanus_GBIF_clean, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
+semibalanus_spat <- vect(final_visual_semibalanus, geom=c("lon", "lat"), crs="+proj=longlat +datum=WGS84")
 class(semibalanus_spat)
 
 # create a SpatRaster with the extent of acgeo
@@ -538,6 +569,10 @@ We use the `biooracler` package here to obtain our environmental variables of in
 # explore layers
 biooracler_layers <- biooracler::list_layers()
 
+# define lat long
+uk_lat <- c(49.39,60.8626)
+uk_long <- c(-10.9968,2.5643)
+
 # example of selecting five variables from three datasets
 datasets <- list(
 
@@ -546,45 +581,45 @@ datasets <- list(
        variables = "tas_mean",
        constraints = 
          list(#time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-              latitude = c(49.5, 61), longitude = c(-11, 2))),
+              latitude = uk_lat, longitude = uk_long )),
   
   list(dataset_id = "tas_ssp585_2020_2100_depthsurf",
        variables = "tas_mean",
        constraints = 
          list(#time = c('2020-01-01T00:00:00Z', '2090-01-01T00:00:00Z'), 
-              latitude = c(49.5, 61), longitude = c(-11, 2))),
+              latitude = uk_lat, longitude = uk_long )),
   
   #ocean temps
   list(dataset_id = "thetao_baseline_2000_2019_depthsurf",
        variables = "thetao_mean",
        constraints = list(
          #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-         latitude = c(49.5, 61), longitude = c(-11, 2))), 
+         latitude = uk_lat, longitude = uk_long )), 
   
   list(dataset_id = "thetao_ssp585_2020_2100_depthsurf",
        variables = "thetao_mean",
        constraints = list(
          #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-         latitude = c(49.5, 61), longitude = c(-11, 2))), 
+         latitude = uk_lat, longitude = uk_long )), 
   
   # pH
   list(dataset_id = "ph_baseline_2000_2018_depthsurf",
        variables = "ph_mean",
        constraints = list(
          #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-         latitude = c(49.5, 61), longitude = c(-11, 2))),
+         latitude = uk_lat, longitude = uk_long )),
   
   list(dataset_id = "ph_ssp585_2020_2100_depthsurf",
        variables = "ph_mean",
        constraints = list(
          #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-         latitude = c(49.5, 61), longitude = c(-11, 2))),
+         latitude = uk_lat, longitude = uk_long )),
   
   list(dataset_id = "terrain_characteristics",
        variables = "coastline",
        constraints = list(
          #time = c('2000-01-01T00:00:00Z', '2010-01-01T00:00:00Z'), 
-         latitude = c(49.5, 61), longitude = c(-11, 2)))
+         latitude = uk_lat, longitude = uk_long ))
   
   )
 
@@ -598,7 +633,7 @@ for (dataset in datasets) {
   layer <- download_layers(dataset_id, variables = variables, constraints = constraints)
   
   # Save using dataset_id
-  save_path <- file.path("Processed_Data/BIO-ORACLE", paste0(dataset_id, ".rds"))
+  save_path <- file.path("Data/Environmental_data/BIO-ORACLE", paste0(dataset_id, ".rds"))
   saveRDS(layer, save_path)
 }
 ```
@@ -647,7 +682,7 @@ plot(terrain,
      main = "Terrain")
 ```
 
-### Rocky substrate (EMODnet)
+### Rocky substrate (EMODnet & JNCC)
 
 We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODnet servers. Documentation for this service is [here](https://docs.ropensci.org/emodnet.wfs/).
 
@@ -724,7 +759,8 @@ print(ukash)
 rock_ukash <- ukash %>%
   filter(str_detect(str_to_lower(OrigName), "rock"))
 
-rock_ukash_rast <- rast(rock_ukash)
+# make a raster and match format to the other environmental variables
+rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
 
 # plot
 rock_ukash_plot <- ggplot(rock_ukash) +
@@ -742,11 +778,12 @@ rock_ukash_plot
 ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
-### Create stack
+### Create environmental stack
 
 ```{r}
 #| label: create-stack
 
+# extents don't currenty match
 enviro_vars_current <- stack(
   c(ocean_temp_present,
     air_temp_present,
@@ -755,41 +792,53 @@ enviro_vars_current <- stack(
     rock_ukash_rast
     ))
 
+names(enviro_vars_current) <- c("ocean_temp_2000", "ocean_temp_2020", "air_temp_2000", "air_temp_2020", "ph_2000", "ph_2020", "coastline_binary", "rocky_substrate")
+names(enviro_vars_current)
 plot(enviro_vars_current) # plots each decade
 
 enviro_vars_projected <- stack(
   c(ocean_temp_projected,
     air_temp_projected,
     ph_projected,
-    terrain
+    terrain,
+    rock_ukash_rast
     ))
 
 plot(enviro_vars_projected) # plots each decade
 ```
 
+## Creating SDM data sets
+
 ### Visualize occurrence over variables
 
+#### Semibalanus
+
 ```{r}
-#| label: view-obs-on-temp
+#| label: view-obs-on-temp-semibalanus
 
 # second layer of the SpatRaster (current ocean temp)
+# we do not need the first column (species name)
+final_visual_semibalanus  <- final_visual_semibalanus[,-1]
 
-# we do not need the first column
-semibalanus_balanoides_obs_both_methods  <- semibalanus_balanoides_obs_both_methods[,-1]
-
-patella_depressa_obs_both_methods <- patella_depressa_obs_both_methods[,-1]
-
-# semibalanus
+# plot
 plot(enviro_vars_current, 2, col = cols)
 lines(wrld)
-points(semibalanus_balanoides_obs_both_methods,
-       col='blue')
+points(final_visual_semibalanus$lon, final_visual_semibalanus$lat, col = 'blue')
+```
 
-# patella
+#### Patella
+
+```{r}
+
+# remove row
+patella_depressa_obs_both_methods <- patella_depressa_obs_both_methods[,-1]
+
+#plot
 plot(enviro_vars_current, 2, col = cols)
 lines(wrld)
 points(patella_depressa_obs_both_methods,
        col='blue')
+
 ```
 
 ### Extract value of predictors at occurrence points
@@ -799,10 +848,13 @@ We use the `extract` function from the `raster` package.
 ```{r}
 #| label: extract-values
 
-#extract
-presvals_semibalanus <- extract(enviro_vars_current, semibalanus_balanoides_obs_both_methods) 
+# remove source column
+final_visual_semibalanus_reduced <- final_visual_semibalanus[,-3]
 
-head(presvals_semibalanus)
+#extract
+presvals_semibalanus_visual <- extract(enviro_vars_current, final_visual_semibalanus_reduced) 
+
+head(presvals_semibalanus_visual) # all NA!
 ```
 
 We can see that some points are being treated as land rather than sea (we've got quite a few NAs). We need to find the closest point which is classed as coastline and use that instead.
@@ -813,7 +865,7 @@ We can see that some points are being treated as land rather than sea (we've got
 # call function we created eariler to correct points
 presvals_semibalanus_corrected <- get_nearest_coastline(
   enviro_vars_current,
-  semibalanus_balanoides_obs_both_methods,
+  final_visual_semibalanus_reduced,
   terrain)
 
 # remove the ID variable
@@ -838,9 +890,7 @@ backgr <- spatSample(enviro_vars_current_rast,
                      na.rm = TRUE)
 
 absvals <- values(backgr)
-
 pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
-
 sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
 
 head(sdmdata)
@@ -863,7 +913,7 @@ We can see that air temp and ocean temp are highly correlated, hence we only wan
 
 ```{r}
 
-m1 <- glm(pb ~ thetao_mean_2 + ph_mean_2, data=sdmdata)
+m1 <- glm(pb ~ ocean_temp_2020 + ph_2020 + rocky_substrate, data=sdmdata)
 class(m1)
 
 summary(m1)
@@ -873,10 +923,10 @@ summary(m1)
 
 ```{r}
 
-bc <- envelope(presvals_semibalanus_corrected[,c("thetao_mean_2", "ph_mean_2")])
+bc <- envelope(presvals_semibalanus_corrected[,c("ocean_temp_2020", "ph_2020")])
 bc
 
-pr <- partialResponse(bc, presvals_semibalanus_corrected, "thetao_mean_2")
+pr <- partialResponse(bc, presvals_semibalanus_corrected, "ocean_temp_2020")
 plot(pr[[1]], type="l")
 ```
 
@@ -884,7 +934,23 @@ plot(pr[[1]], type="l")
 
 names(enviro_vars_current_rast)
 p <- predict(enviro_vars_current_rast, m1)
-plot(p) # obviously this need to be restircted to rocky areas
+
+# 'coastline' is a binary raster: 1 = coastline, NA or 0 = non-coast
+prediction_masked <- mask(p, terrain)
+plot(prediction_masked) # obviously this need to be restircted to rocky areas
+```
+
+```{r}
+
+# Convert to points
+points_df <- as.data.frame(prediction_masked, xy = TRUE, na.rm = TRUE)
+colnames(points_df)[3] <- "probability"
+
+ggplot(points_df, aes(x = x, y = y, color = probability)) +
+  geom_point(size = 0.6) +
+  scale_color_viridis_c(name = "Habitat Suitability") +
+  theme_minimal() +
+  coord_fixed()
 ```
 
 ## Model evaluation
