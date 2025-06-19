@@ -215,7 +215,7 @@ We can also other occurrences from GBIF. These have been \# for now to save time
 ```{r}
 #| label: download-from-GBIF-semibalanus
 
-minYear = 2020
+minYear = 2022
 
 # Semibalanus
 
@@ -227,7 +227,7 @@ minYear = 2020
 
 #write.csv(semibalanus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/semibalanus_",minYear,".csv", sep = ""))
 
-semibalanus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/semibalanus_2020.csv")
+semibalanus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/semibalanus_2022.csv")
   
 # Phorcus
 
@@ -249,7 +249,7 @@ phorcus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/phorcus_2020.csv")
 
 #write.csv(chthamalus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/chthamalus_",minYear,".csv", sep = ""))
 
-chthamalus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/chthamalus_2020.csv")
+chthamalus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/chthamalus_2022.csv")
 
 # Perforatus perforatus
 
@@ -826,19 +826,19 @@ lines(wrld)
 points(final_visual_semibalanus$lon, final_visual_semibalanus$lat, col = 'blue')
 ```
 
-#### Patella
+#### Chthamalus
 
 ```{r}
+#| label: view-obs-on-temp-chthamalus
 
 # remove row
-patella_depressa_obs_both_methods <- patella_depressa_obs_both_methods[,-1]
+chthamalus_montagui_obs_both_methods <- chthamalus_montagui_obs_both_methods[,-1]
 
 #plot
 plot(enviro_vars_current, 2, col = cols)
 lines(wrld)
-points(patella_depressa_obs_both_methods,
+points(chthamalus_montagui_obs_both_methods,
        col='blue')
-
 ```
 
 ### Extract value of predictors at occurrence points
@@ -954,3 +954,11 @@ ggplot(points_df, aes(x = x, y = y, color = probability)) +
 ```
 
 ## Model evaluation
+
+## BIOMOD2 workflow
+
+```{r}
+
+
+
+```
