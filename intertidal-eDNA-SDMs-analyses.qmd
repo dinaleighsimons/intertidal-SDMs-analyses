@@ -14,7 +14,7 @@ warning: false
 
 This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
-Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide.
+Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide, and BIOMOD2 tutorials.
 
 ## Set-up
 
@@ -51,7 +51,15 @@ packages <- c("devtools",
               "here",
               "emodnet.wfs", #github
               "biooracler",#github
-              "biomod2") 
+              "biomod2",
+              "dismo",
+              "xgboost",
+              "caret",
+              "gam",
+              "mda",
+              "earth",
+              "maxnet",
+              "randomForest") 
 
 # Install any missing packages along with their dependencies
 new.packages <- packages[!(packages %in% installed.packages()[, "Package"])]
@@ -110,15 +118,15 @@ get_nearest_coastline <- function(environment_stack, occurance_data, condition) 
                            crs = crs(points))
   
   # Extract environmental variables at corrected points
-  presvals_corrected <- extract(env_terra, corrected_points)
+  #presvals_corrected <- extract(env_terra, corrected_points)
   
-  return(presvals_corrected)
+  return(corrected_points)
 }
 ```
 
 ## Occurrence data
 
-### Import eDNA and visual occurrences
+### Import paired eDNA and MarClim occurrences
 
 Let's first read in our occurrences and metadata.
 
@@ -208,6 +216,57 @@ uk_extent_match <- ext(-10.8,2,49.4,60.8)
 wrld <- world(path=".")
 ```
 
+### Import wider MarClim occurrences
+
+MarClim has a broader range of sites than just the sites matched to our eDNA samples. We can use this as an evaluation data set because it contains close to true absence and presence for the sampled sites. We are going to stick to 2022 - 2023 period to keep things simple.
+
+```{r}
+#| label: import-broad-marclim-data
+
+# read
+marclim_broad <- read.csv(file = "Data/Occurrence_data/my_dataset/MarClim_SACFOR_22_23.csv")
+
+# filter for just semibalanus and chthamalus
+marclim_broad_sp <- marclim_broad %>%
+  select(Semibalanus.balanoides, 
+         Chthamalus.montagui, 
+         Lat..WGS84., 
+         Long..WGS84.)
+
+#convert to PA
+marclim_broad_sp_PA <- marclim_broad_sp %>%
+  mutate(across(
+    c(Semibalanus.balanoides, Chthamalus.montagui),
+    ~ ifelse(. %in% c("NR", "NS", "?", ""), 0, 1)
+  )) %>% na.omit()
+
+# tidy labels
+marclim_broad_sp_PA <- marclim_broad_sp_PA %>%
+  rename(
+    lat = Lat..WGS84.,
+    lon = Long..WGS84.
+  )
+
+#only within uK extent
+marclim_broad_sp_PA <- subset(marclim_broad_sp_PA,
+  lon >= -10.8 & lon <= 2 &
+  lat >= 49.4 & lat <= 60.8
+)
+
+# make individual species presence only datasets for maps
+semibalanus_marclim_broad <- marclim_broad_sp_PA %>%
+  select(-c(Chthamalus.montagui)) %>% 
+  filter(Semibalanus.balanoides == 1) %>% 
+  mutate(species = "Semibalanus balanoides") %>% 
+  select(-c(Semibalanus.balanoides))
+
+chthamalus_marclim_broad <- marclim_broad_sp_PA %>%
+  select(-c(Semibalanus.balanoides)) %>% 
+  filter(Chthamalus.montagui == 1) %>% 
+  mutate(species = "Chthamalus montagui") %>% 
+  select(-c(Chthamalus.montagui))
+```
+
 ### Import GBIF occurrences
 
 We can also other occurrences from GBIF. These have been \# for now to save time and memory. They have been loaded directly in.
@@ -228,7 +287,11 @@ minYear = 2022
 #write.csv(semibalanus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/semibalanus_",minYear,".csv", sep = ""))
 
 semibalanus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/semibalanus_2022.csv")
-  
+
+# we only want 2022 and 2023 to match survey data
+semibalanus_GBIF_clean <- semibalanus_GBIF_clean %>% 
+  filter(year %in% c(2022, 2023))
+
 # Phorcus
 
 #phorcus_GBIF_obs <- geodata::sp_occurrence("phorcus", "lineatus", geo=TRUE, ext = uk_extent)
@@ -250,6 +313,10 @@ phorcus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/phorcus_2020.csv")
 #write.csv(chthamalus_GBIF_obs_nodups_recent, file = paste("Data/Occurrence_data/GBIF/chthamalus_",minYear,".csv", sep = ""))
 
 chthamalus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/chthamalus_2022.csv")
+
+# we only want 2022 and 2023 to match survey data
+chthamalus_GBIF_clean <- chthamalus_GBIF_clean %>% 
+  filter(year %in% c(2022, 2023))
 
 # Perforatus perforatus
 
@@ -285,7 +352,9 @@ patella_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/patella_2020.csv")
 bifurcaria_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/bifurcaria_2020.csv")
 ```
 
-### Create final data sets for model
+### Create data sets for model
+
+We need 1) MarClim alone (as the evaluation data set), 2) GBIF alone as the visual data set, and 3) GBIF + eDNA.
 
 ```{r}
 #| label: combining-data-sources-semibalanus
@@ -296,50 +365,142 @@ semibalanus_GBIF_clean_reduced <- semibalanus_GBIF_clean %>%
          source = "GBIF") %>%
   select(species, lat, lon, source)
 
-semibalanus_balanoides_obs_visual$source <- "MarClim"
-final_visual_semibalanus <- rbind(semibalanus_GBIF_clean_reduced, semibalanus_balanoides_obs_visual)
+semibalanus_marclim_broad$source <- "MarClim"
+final_visual_semibalanus <- rbind(semibalanus_GBIF_clean_reduced, semibalanus_marclim_broad)
 
-# combining visual + eDNA
+# combining visual + eDNA (all)
 semibalanus_balanoides_obs_eDNA$source <- "eDNA"
 final_combined_semibalanus <- rbind(final_visual_semibalanus, semibalanus_balanoides_obs_eDNA) # plused 26 observations
+
+# GBIF + eDNA
+semibalanus_GBIF_eDNA <- rbind(semibalanus_GBIF_clean_reduced, semibalanus_balanoides_obs_eDNA) # plused 26 observations
+
+# marclim alone 
+semibalanus_marclim_broad <- semibalanus_marclim_broad %>% 
+  select(c(species, lat, lon))
+
+# GBIF alone
+semibalanus_GBIF_clean_reduced <- semibalanus_GBIF_clean_reduced %>% 
+  select(c(species, lat, lon)) 
 ```
 
-We now have two data sets for each species, one with MarClim + GBIF visual observations and one with all visual + eDNA.
+We now have a few data sets for each species.
 
 ```{r}
 #| label: view-final-datasets
 
-final_visual_semibalanus
-final_combined_semibalanus
+head(semibalanus_marclim_broad) # marclim alone
+head(semibalanus_GBIF_clean_reduced) #GBIF alone
+head(semibalanus_GBIF_eDNA) #GBIF + eDNA
+head(final_visual_semibalanus) #MarClim + GBIF
+head(final_combined_semibalanus) #all visual + eDNA
+```
+
+Same again for chthamalus.
+
+```{r}
+#| label: combining-data-sources-chthamalus
+
+# combined GBIF and Marclim
+chthamalus_GBIF_clean_reduced <- chthamalus_GBIF_clean %>% 
+  mutate(species = as.factor(species),
+         source = "GBIF") %>%
+  select(species, lat, lon, source)
+
+chthamalus_marclim_broad$source <- "MarClim"
+final_visual_chthamalus <- rbind(chthamalus_GBIF_clean_reduced, chthamalus_marclim_broad)
+
+# combining visual + eDNA
+chthamalus_montagui_obs_eDNA$source <- "eDNA"
+final_combined_chthamalus <- rbind(final_visual_chthamalus, chthamalus_montagui_obs_eDNA) 
+
+# GBIF + eDNA
+chthamalus_GBIF_eDNA <- rbind(chthamalus_GBIF_clean_reduced, chthamalus_montagui_obs_eDNA) # plused 26 observations
+
+# marclim alone 
+chthamalus_marclim_broad <- chthamalus_marclim_broad %>% 
+  select(c(species, lat, lon))
+
+# GBIF alone
+chthamalus_GBIF_clean_reduced <- chthamalus_GBIF_clean_reduced %>% 
+  select(c(species, lat, lon)) 
+
+# check
+head(chthamalus_marclim_broad)
+head(chthamalus_GBIF_clean_reduced)
+head(chthamalus_GBIF_eDNA)
+head(final_visual_chthamalus)
+head(final_combined_chthamalus)
 ```
 
 ### Visualize occurrences
 
+Let's plot our occurrences on a map. Grey points are sources from GBIF, green points are sourced from our generated MarClim data, and blue points are sources from our generated eDNA data.
+
 ```{r}
-#| label: plot-occurance-GBIF-data-semibalanus
+#| label: plot-occurance-GBIF-data-semibalanus-ggplot
 
-# Set the file path and open the PNG device
-png(filename = paste("Figures/semibalanus_occs_map_", minYear, ".png", sep = ""),
-    width = 800, height = 600)
+# Base ggplot map
+semibalanus_map <- ggplot() +
+  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  
+  # Add all points with color mapped to 'source'
+  geom_jitter(data = final_combined_semibalanus, 
+              aes(x = lon, y = lat, color = source), 
+              size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
+  
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude", color = "Data source") +
+  scale_color_manual(values = c(
+    "GBIF" = "darkgrey",
+    "MarClim" = "lightgreen",
+    "eDNA" = "navy"
+  )) +
+  theme(legend.position = "none")
 
-# Plot commands
-plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
+semibalanus_map
 
-# Add GBIF points
-points(semibalanus_GBIF_clean$lon, 
-       semibalanus_GBIF_clean$lat, 
-       col = 'darkgrey', 
-       pch = 20)
+# Save the plot
+ggsave(semibalanus_map, filename = "Figures/semibalanus_map.png", width = 8, height = 6, dpi = 300)
+```
 
-# Add your points
-points(x = semibalanus_balanoides_obs_both_methods$lon, 
-       y = semibalanus_balanoides_obs_both_methods$lat, 
-       col = "red", 
-       pch = 20, 
-       cex = 0.75)
+```{r}
+#| label: plot-occurance-GBIF-data-chthamalus-ggplot
 
-# Close the device
-dev.off()
+# Base ggplot map
+chthamalus_map <- ggplot() +
+  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  
+  # need to jitter points a bit so that some are not hidden
+  geom_jitter(data = final_combined_chthamalus, 
+              aes(x = lon, y = lat, color = source), 
+              size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
+  
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude", color = "Data source") +
+  scale_color_manual(values = c(
+    "GBIF" = "darkgrey",
+    "MarClim" = "lightgreen",
+    "eDNA" = "navy"
+  ))
+
+chthamalus_map
+
+# Save the plot
+ggsave(chthamalus_map, filename = "Figures/chthamalus_map.png", width = 8, height = 6, dpi = 300)
+```
+
+```{r}
+#| label: joint-map-twospecies
+
+joint_map <- cowplot::plot_grid(semibalanus_map, chthamalus_map, labels = c("a", "b"),rel_widths = c(1,1.5) )
+
+joint_map
+
+# Save the plot
+ggsave(joint_map, filename = "Figures/chthamalus_semibalanus_map.png", width = 11, height = 6, dpi = 300)
 ```
 
 ```{r}
@@ -361,33 +522,6 @@ points(phorcus_GBIF_clean$lon,
 # Add your points
 points(x = phorcus_lineatus_obs_both_methods$lon, 
        y = phorcus_lineatus_obs_both_methods$lat, 
-       col = "red", 
-       pch = 20, 
-       cex = 0.75)
-
-# Close the device
-dev.off()
-```
-
-```{r}
-#| label: plot-occurance-GBIF-data-chthamalus
-
-# Set the file path and open the PNG device
-png(filename = paste("Figures/chthamalus_occs_map_", minYear, ".png", sep = ""),
-    width = 800, height = 600)
-
-# Plot commands
-plot(wrld, xlim = c(-11, 3), ylim = c(49, 61), col = "light yellow", border = "light gray")
-
-# Add GBIF points
-points(chthamalus_GBIF_clean$lon, 
-       chthamalus_GBIF_clean$lat, 
-       col = 'darkgrey', 
-       pch = 20)
-
-# Add your points
-points(x = chthamalus_montagui_obs_both_methods$lon, 
-       y = chthamalus_montagui_obs_both_methods$lat, 
        col = "red", 
        pch = 20, 
        cex = 0.75)
@@ -690,41 +824,41 @@ We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODne
 #| label: import-from-emodnet_wfs
 
 # service information 
-services <- emodnet_wfs()
-services[, c("emodnet_thematic_lot", "service_name")]
+#services <- emodnet_wfs()
+#services[, c("emodnet_thematic_lot", "service_name")]
 
 # initialising a client is the first step to interacting with an EMODnet Web Feature Services
 #wfs_geo <- emodnet_init_wfs_client(service = "geology_seabed_substrate_maps")
-wfs_seabed <- emodnet_init_wfs_client(service =  "seabed_habitats_general_datasets_and_products")
+#wfs_seabed <- emodnet_init_wfs_client(service =  "seabed_habitats_general_datasets_and_products")
 
 # List contents of a WFS
-layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_seabed)
-layer_info
+#layer_info <- emodnet.wfs::emodnet_get_wfs_info(wfs_seabed)
+#layer_info
 
 # get descripion
-layer_info %>%
-  filter(layer_name == "ukseamap_latest_habitats") %>%
-  pull(abstract) %>%
-  cat()
+#layer_info %>%
+  #filter(layer_name == "ukseamap_latest_habitats") %>%
+  #pull(abstract) %>%
+  #cat()
 
 # only UKASH Mosaic of Localised Maps includes intertidal zone
 
 # define layer
-layers <- c("ukseamap_latest_habitats") 
+#layers <- c("ukseamap_latest_habitats") 
 
 # get the data
-emodnet_substrate <- emodnet_get_layers(wfs = wfs_seabed,
-                                        layers = layers,
-                                        simplify = TRUE)
+#emodnet_substrate <- emodnet_get_layers(wfs = wfs_seabed,
+                                        #layers = layers,
+                                        #simplify = TRUE)
 # explore the data
-emodnet_substrate
-unique(colnames(emodnet_substrate))
-unique(emodnet_substrate$eunis_name)
-unique(emodnet_substrate$country)
+#emodnet_substrate
+#unique(colnames(emodnet_substrate))
+#unique(emodnet_substrate$eunis_name)
+#unique(emodnet_substrate$country)
 
 # get hard rock only - no littoral :(
-rock_hard_substrate <- emodnet_substrate %>%
-  filter(str_detect(str_to_lower(eunis_name), "rock"))
+#rock_hard_substrate <- emodnet_substrate %>%
+  #filter(str_detect(str_to_lower(eunis_name), "rock"))
 
 #plot (takes horrendously long)
 #ggplot(rock_hard_substrate) +
@@ -744,38 +878,38 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 #| label: read-in-UKASH-mosaic
 
 # Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
-gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
+#gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
 
 # List available layers
-st_layers(gdb_path)
+#st_layers(gdb_path)
 
 # read in
-ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
+#ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
 
 # explore
-print(ukash)
+##print(ukash)
 
 # filter for rocky only
-rock_ukash <- ukash %>%
-  filter(str_detect(str_to_lower(OrigName), "rock"))
+#rock_ukash <- ukash %>%
+  #filter(str_detect(str_to_lower(OrigName), "rock"))
 
 # make a raster and match format to the other environmental variables
-rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
+#rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
 
 # plot
-rock_ukash_plot <- ggplot(rock_ukash) +
-  geom_sf(aes(fill = OrigName)) +
-  scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
-  coord_sf(crs = 4326) +
-  theme_minimal() +
-  labs(
-    title = "UKASH Mosaic Localised Rock Habitat Map",
-    x = "Longitude", y = "Latitude"
-  ) + theme(legend.position = "none")
+#rock_ukash_plot <- ggplot(rock_ukash) +
+  #geom_sf(aes(fill = OrigName)) +
+  #scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  #coord_sf(crs = 4326) +
+  ##theme_minimal() +
+  #labs(
+    #title = "UKASH Mosaic Localised Rock Habitat Map",
+    #x = "Longitude", y = "Latitude"
+  #) + theme(legend.position = "none")
 
-rock_ukash_plot
+#rock_ukash_plot
 
-ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
+#ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
 ### Create environmental stack
@@ -783,16 +917,26 @@ ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```{r}
 #| label: create-stack
 
-# extents don't currenty match
+# stack
 enviro_vars_current <- stack(
   c(ocean_temp_present,
     air_temp_present,
     ph_present,
-    terrain,
-    rock_ukash_rast
+    terrain
+    #rock_ukash_rast
     ))
 
-names(enviro_vars_current) <- c("ocean_temp_2000", "ocean_temp_2020", "air_temp_2000", "air_temp_2020", "ph_2000", "ph_2020", "coastline_binary", "rocky_substrate")
+names(enviro_vars_current) <- c(
+  "ocean_temp_2000",
+  "ocean_temp_2020",
+  "air_temp_2000",
+  "air_temp_2020",
+  "ph_2000",
+  "ph_2020",
+  "coastline_binary"
+)
+#, "rocky_substrate")
+
 names(enviro_vars_current)
 plot(enviro_vars_current) # plots each decade
 
@@ -800,8 +944,8 @@ enviro_vars_projected <- stack(
   c(ocean_temp_projected,
     air_temp_projected,
     ph_projected,
-    terrain,
-    rock_ukash_rast
+    terrain#,
+    #rock_ukash_rast
     ))
 
 plot(enviro_vars_projected) # plots each decade
@@ -811,7 +955,7 @@ plot(enviro_vars_projected) # plots each decade
 
 ### Visualize occurrence over variables
 
-#### Semibalanus
+Semibalanus
 
 ```{r}
 #| label: view-obs-on-temp-semibalanus
@@ -826,7 +970,7 @@ lines(wrld)
 points(final_visual_semibalanus$lon, final_visual_semibalanus$lat, col = 'blue')
 ```
 
-#### Chthamalus
+Chthamalus
 
 ```{r}
 #| label: view-obs-on-temp-chthamalus
@@ -841,7 +985,7 @@ points(chthamalus_montagui_obs_both_methods,
        col='blue')
 ```
 
-### Extract value of predictors at occurrence points
+### Fixed unmatched occurrence points to environmental data
 
 We use the `extract` function from the `raster` package.
 
@@ -859,43 +1003,200 @@ head(presvals_semibalanus_visual) # all NA!
 
 We can see that some points are being treated as land rather than sea (we've got quite a few NAs). We need to find the closest point which is classed as coastline and use that instead.
 
+Let's do Semibalanus first.
+
 ```{r}
-#| label: correct-points
+#| label: correct_marclim_seminbalanus
 
 # call function we created eariler to correct points
-presvals_semibalanus_corrected <- get_nearest_coastline(
+semibalanus_corrected_marclim <- get_nearest_coastline(
   enviro_vars_current,
-  final_visual_semibalanus_reduced,
+  semibalanus_marclim_broad,
   terrain)
 
+# check
+envir_terra <- rast(enviro_vars_current)
+presvals_semibalanus_corrected_marclim <- extract(envir_terra, semibalanus_corrected_marclim) # this looks better
+
 # remove the ID variable
-presvals_semibalanus_corrected <- presvals_semibalanus_corrected[,-1]
+presvals_semibalanus_corrected_marclim <- presvals_semibalanus_corrected_marclim[,-1]
 
 # check the new data
-head(presvals_semibalanus_corrected)
+head(semibalanus_corrected_marclim)
+
+# for the PA version
+
+# call function we created eariler to correct points
+marclim_broad_sp_PA_semibalanus <- marclim_broad_sp_PA %>% select(-c("Chthamalus.montagui"))
+
+semibalanus_corrected_marclim_PA <- get_nearest_coastline(
+  enviro_vars_current,
+  marclim_broad_sp_PA_semibalanus,
+  terrain)
+
+presvals_semibalanus_corrected_marclim_PA <- extract(envir_terra, semibalanus_corrected_marclim_PA) # this looks better
+
+# remove the ID variable
+presvals_semibalanus_corrected_marclim_PA <- presvals_semibalanus_corrected_marclim_PA[,-1]
+
+# check the new data
+head(semibalanus_corrected_marclim_PA)
 ```
 
 ```{r}
+#| label: correct_gbif_seminbalanus
 
+# call function we created eariler to correct points
+semibalanus_corrected_gbif <- get_nearest_coastline(
+  enviro_vars_current,
+  semibalanus_GBIF_clean_reduced,
+  terrain)
+
+# check
+presvals_semibalanus_corrected_gbif <- extract(envir_terra, semibalanus_corrected_gbif[, c("lon", "lat")]) # this looks better
+
+# remove the ID variable
+presvals_semibalanus_corrected_gbif <- presvals_semibalanus_corrected_gbif[,-1]
+
+# check the new data
+head(semibalanus_corrected_gbif)
+
+# Count how many presence points have all variables NA (or any NA)
+na_points <- apply(presvals_semibalanus_corrected_gbif, 1, function(x) any(is.na(x)))
+
+table(na_points) #only 2 NA points
+```
+
+```{r}
+#| label: correct_combined_seminbalanus
+
+# call function we created eariler to correct points
+semibalanus_corrected_combined <- get_nearest_coastline(
+  enviro_vars_current,
+  semibalanus_GBIF_eDNA,
+  terrain)
+
+# check
+presvals_semibalanus_corrected_combined <- extract(envir_terra, semibalanus_corrected_combined[, c("lon", "lat")]) # this looks better
+
+# remove the ID variable
+presvals_semibalanus_corrected_combined <- presvals_semibalanus_corrected_combined[,-1]
+
+# check the new data
+head(semibalanus_corrected_combined)
+
+# Count how many presence points have all variables NA (or any NA)
+na_points <- apply(presvals_semibalanus_corrected_combined, 1, function(x) any(is.na(x)))
+
+table(na_points) #only 2 NA points
+```
+
+Now let's do Chthamalus.
+
+```{r}
+#| label: correct_marclim_chthamalus
+
+# call function we created eariler to correct points
+chthamalus_corrected_marclim <- get_nearest_coastline(
+  enviro_vars_current,
+  chthamalus_marclim_broad,
+  terrain)
+
+# check
+envir_terra <- rast(enviro_vars_current)
+presvals_chthamalus_corrected_marclim <- extract(envir_terra, chthamalus_corrected_marclim) # this looks better
+
+# remove the ID variable
+presvals_chthamalus_corrected_marclim <- presvals_chthamalus_corrected_marclim[,-1]
+
+# check the new data
+head(chthamalus_corrected_marclim)
+
+# for the PA version
+
+# call function we created eariler to correct points
+marclim_broad_sp_PA_chthamalus <- marclim_broad_sp_PA %>% select(-c("Semibalanus.balanoides"))
+
+chthamalus_corrected_marclim_PA <- get_nearest_coastline(
+  enviro_vars_current,
+  marclim_broad_sp_PA_chthamalus,
+  terrain)
+
+presvals_chthamalus_corrected_marclim_PA <- extract(envir_terra, chthamalus_corrected_marclim_PA) # this looks better
+
+# remove the ID variable
+presvals_chthamalus_corrected_marclim_PA <- presvals_chthamalus_corrected_marclim_PA[,-1]
+
+# check the new data
+head(chthamalus_corrected_marclim_PA)
+```
+
+```{r}
+#| label: correct_gbif_chthamalus
+
+# call function we created eariler to correct points
+chthamalus_corrected_gbif <- get_nearest_coastline(
+  enviro_vars_current,
+  chthamalus_GBIF_clean_reduced,
+  terrain)
+
+# check
+presvals_chthamalus_corrected_gbif <- extract(envir_terra, chthamalus_corrected_gbif[, c("lon", "lat")]) # this looks better
+
+# remove the ID variable
+presvals_chthamalus_corrected_gbif <- presvals_chthamalus_corrected_gbif[,-1]
+
+# check the new data
+head(chthamalus_corrected_gbif)
+
+# Count how many presence points have all variables NA (or any NA)
+na_points <- apply(presvals_chthamalus_corrected_gbif, 1, function(x) any(is.na(x)))
+
+table(na_points) #only 2 NA points
+```
+
+```{r}
+#| label: correct_combined_chthamalus
+
+# call function we created eariler to correct points
+chthamalus_corrected_combined <- get_nearest_coastline(
+  enviro_vars_current,
+  chthamalus_GBIF_eDNA,
+  terrain)
+
+# check
+presvals_chthamalus_corrected_combined <- extract(envir_terra, chthamalus_corrected_combined[, c("lon", "lat")]) # this looks better
+
+# remove the ID variable
+presvals_chthamalus_corrected_combined <- presvals_chthamalus_corrected_combined[,-1]
+
+# check the new data
+head(chthamalus_corrected_combined)
+
+# Count how many presence points have all variables NA (or any NA)
+na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is.na(x)))
+
+table(na_points) #only 2 NA points
+```
+
+```{r}
 # setting random seed to always create the same
 # random set of points for this example
-set.seed(0)
+##set.seed(0)
+#enviro_vars_current_rast <- rast(enviro_vars_current)
+#backgr <- spatSample(enviro_vars_current_rast,
+                     #500,
+                     #"random",
+                     #as.points = TRUE,
+                     #na.rm = TRUE)
 
-enviro_vars_current_rast <- rast(enviro_vars_current)
+#absvals <- values(backgr)
+#pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
+#sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
 
-backgr <- spatSample(enviro_vars_current_rast,
-                     500,
-                     "random",
-                     as.points = TRUE,
-                     na.rm = TRUE)
-
-absvals <- values(backgr)
-pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
-sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
-
-head(sdmdata)
-tail(sdmdata)
-summary(sdmdata)
+#head(sdmdata)
+#tail(sdmdata)
+#summary(sdmdata)
 ```
 
 ### Check co-linearity
@@ -903,8 +1204,8 @@ summary(sdmdata)
 ```{r}
 #| label: check-colinearity
 
-pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
-pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
+#pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
+#pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
 ```
 
 We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables.
@@ -913,51 +1214,246 @@ We can see that air temp and ocean temp are highly correlated, hence we only wan
 
 ```{r}
 
-m1 <- glm(pb ~ ocean_temp_2020 + ph_2020 + rocky_substrate, data=sdmdata)
-class(m1)
+#m1 <- glm(pb ~ ocean_temp_2020 + ph_2020 + rocky_substrate, data=sdmdata)
+#class(m1)
 
-summary(m1)
+#summary(m1)
 ```
 
 ## Model prediction
 
 ```{r}
 
-bc <- envelope(presvals_semibalanus_corrected[,c("ocean_temp_2020", "ph_2020")])
-bc
+#bc <- envelope(presvals_semibalanus_corrected[,c("ocean_temp_2020", "ph_2020")])
+#bc
 
-pr <- partialResponse(bc, presvals_semibalanus_corrected, "ocean_temp_2020")
-plot(pr[[1]], type="l")
+#pr <- partialResponse(bc, presvals_semibalanus_corrected, "ocean_temp_2020")
+#plot(pr[[1]], type="l")
 ```
 
 ```{r}
 
-names(enviro_vars_current_rast)
-p <- predict(enviro_vars_current_rast, m1)
+#names(enviro_vars_current_rast)
+#p <- predict(enviro_vars_current_rast, m1)
 
 # 'coastline' is a binary raster: 1 = coastline, NA or 0 = non-coast
-prediction_masked <- mask(p, terrain)
-plot(prediction_masked) # obviously this need to be restircted to rocky areas
+#prediction_masked <- mask(p, terrain)
+#plot(prediction_masked) # obviously this need to be restircted to rocky areas
 ```
 
 ```{r}
 
 # Convert to points
-points_df <- as.data.frame(prediction_masked, xy = TRUE, na.rm = TRUE)
-colnames(points_df)[3] <- "probability"
+#points_df <- as.data.frame(prediction_masked, xy = TRUE, na.rm = TRUE)
+#colnames(points_df)[3] <- "probability"
 
-ggplot(points_df, aes(x = x, y = y, color = probability)) +
-  geom_point(size = 0.6) +
-  scale_color_viridis_c(name = "Habitat Suitability") +
-  theme_minimal() +
-  coord_fixed()
+#ggplot(points_df, aes(x = x, y = y, color = probability)) +
+  #geom_point(size = 0.6) +
+  #scale_color_viridis_c(name = "Habitat Suitability") +
+  #theme_minimal() +
+  #coord_fixed()
 ```
-
-## Model evaluation
 
 ## BIOMOD2 workflow
 
+### Data formatting
+
+Semibalanus - visual
+
+```{r}
+#| label: semibalanus-visual-model-data-checks
+
+# pa as df and tidy
+semibalanus_corrected_marclim_PA_df <- as.data.frame(semibalanus_corrected_marclim_PA)
+semibalanus_corrected_gbif_df <- as.data.frame(semibalanus_corrected_gbif)
+semibalanus_corrected_gbif_df$Semibalanus.balanoides <- 1 #add p for gbif
+semibalanus_corrected_gbif_df <- semibalanus_corrected_gbif_df %>% select(-c("species"))
+
+# Fix issues with non-matching coordinates
+# Extract env values
+env_vals <- extract(envir_terra, semibalanus_corrected_gbif)
+df <- as.data.frame(geom(semibalanus_corrected_gbif))
+df <- df %>% select(c(x, y))
+colnames(df) <- c("lon", "lat")
+
+# Bind back to coordinates
+pts_with_vals <- cbind(df, env_vals)
+
+# Remove NAs
+pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
+```
+
+Now let's put all our data elements into the `BIOMOD_FormatingData` function.
+
+```{r}
+#| label: format-data-bodmod2-semibalanus-visual
+
+myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  expl.var = enviro_vars_current,
+  resp.xy = pts_clean, 
+  resp.name = 'Semibalanus.balanoides',
+  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 300, # Number of pseudo-absences (~3 x number of presences)
+  PA.strategy = 'random',
+  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides, # Evaluation responses (0/1)
+  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.expl.var = presvals_semibalanus_corrected_marclim_PA
+  #filter.raster = TRUE #autofilter
+)
+
+myBiomodData_semibalanus_visual
+plot(myBiomodData_semibalanus_visual)
+```
+
+Semibalanus - combined
+
+```{r}
+#| label: semibalanus-combined-model-data-checks
+
+# fomat
+semibalanus_corrected_combined_df <- as.data.frame(semibalanus_corrected_combined)
+semibalanus_corrected_combined_df$Semibalanus.balanoides <- 1 #add p for gbif
+semibalanus_corrected_combined_df <- semibalanus_corrected_combined_df %>% select(-c("species"))
+
+# Fix issues with non-matching coordinates
+# Extract env values
+env_vals <- extract(envir_terra, semibalanus_corrected_combined)
+df <- as.data.frame(geom(semibalanus_corrected_combined))
+df <- df %>% select(c(x, y))
+colnames(df) <- c("lon", "lat")
+
+# Bind back to coordinates
+pts_with_vals <- cbind(df, env_vals)
+
+# Remove NAs
+pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
+```
+
+Now let's put all our data elements into the `BIOMOD_FormatingData` function.
+
+```{r}
+#| label: format-data-bodmod2-semibalanus-combined
+
+myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  expl.var = enviro_vars_current,
+  resp.xy = pts_clean, 
+  resp.name = 'Semibalanus.balanoides',
+  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 300, # Number of pseudo-absences (~3 x number of presences)
+  PA.strategy = 'random',
+  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides, # Evaluation responses (0/1)
+  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.expl.var = presvals_semibalanus_corrected_marclim_PA
+  #filter.raster = TRUE #autofilter
+)
+
+myBiomodData_semibalanus_combined
+plot(myBiomodData_semibalanus_combined)
+```
+
+Now for Chthamalus.
+
+Visual only first.
+
+```{r}
+#| label: chthamalus-visual-model-data-checks
+
+# pa as df and tidy
+chthamalus_corrected_marclim_PA_df <- as.data.frame(chthamalus_corrected_marclim_PA)
+chthamalus_corrected_gbif_df <- as.data.frame(chthamalus_corrected_gbif)
+chthamalus_corrected_gbif_df$chthamalus.balanoides <- 1 #add p for gbif
+chthamalus_corrected_gbif_df <- chthamalus_corrected_gbif_df %>% select(-c("species"))
+
+# Fix issues with non-matching coordinates
+# Extract env values
+env_vals <- extract(envir_terra, chthamalus_corrected_gbif)
+df <- as.data.frame(geom(chthamalus_corrected_gbif))
+df <- df %>% select(c(x, y))
+colnames(df) <- c("lon", "lat")
+
+# Bind back to coordinates
+pts_with_vals <- cbind(df, env_vals)
+
+# Remove NAs
+pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
+```
+
+```{r}
+#| label: format-data-bodmod2-chthamalus-visual
+
+myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  expl.var = enviro_vars_current,
+  resp.xy = pts_clean, 
+  resp.name = 'Chthamalus.montagui',
+  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 300, # Number of pseudo-absences (~3 x number of presences)
+  PA.strategy = 'random',
+  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui, # Evaluation responses (0/1)
+  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.expl.var = presvals_chthamalus_corrected_marclim_PA
+  #filter.raster = TRUE #autofilter
+)
+
+myBiomodData_chthamalus_visual
+plot(myBiomodData_chthamalus_visual)
+```
+
+Now combined.
+
+```{r}
+#| label: chthamalus-combined-model-data-checks
+
+# fomat
+chthamalus_corrected_combined_df <- as.data.frame(chthamalus_corrected_combined)
+chthamalus_corrected_combined_df$chthamalus.balanoides <- 1 #add p for gbif
+chthamalus_corrected_combined_df <- chthamalus_corrected_combined_df %>% select(-c("species"))
+
+# Fix issues with non-matching coordinates
+# Extract env values
+env_vals <- extract(envir_terra, chthamalus_corrected_combined)
+df <- as.data.frame(geom(chthamalus_corrected_combined))
+df <- df %>% select(c(x, y))
+colnames(df) <- c("lon", "lat")
+
+# Bind back to coordinates
+pts_with_vals <- cbind(df, env_vals)
+
+# Remove NAs
+pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
+```
+
+```{r}
+#| label: format-data-bodmod2-chthamalus-combined
+
+myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
+  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  expl.var = enviro_vars_current,
+  resp.xy = pts_clean, 
+  resp.name = 'Chthamalus.montagui',
+  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 300, # Number of pseudo-absences (~3 x number of presences)
+  PA.strategy = 'random',
+  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui, # Evaluation responses (0/1)
+  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.expl.var = presvals_chthamalus_corrected_marclim_PA
+  #filter.raster = TRUE #autofilter
+)
+
+myBiomodData_chthamalus_combined
+plot(myBiomodData_chthamalus_combined)
+```
+
+### Cross-validation
+
 ```{r}
 
+```
+
+### Run models
+
+```{r}
 
 ```
