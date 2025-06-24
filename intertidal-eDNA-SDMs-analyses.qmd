@@ -14,7 +14,7 @@ warning: false
 
 This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
-Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide, and BIOMOD2 tutorials.
+Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide, and biomod2 tutorials.
 
 ## Set-up
 
@@ -1266,11 +1266,11 @@ We can see that air temp and ocean temp are highly correlated, hence we only wan
   #coord_fixed()
 ```
 
-## BIOMOD2 workflow
+## `biomod2` workflow
 
 ### Data formatting
 
-Semibalanus - visual
+#### Data set 1 (Semibalanus - visual)
 
 ```{r}
 #| label: semibalanus-visual-model-data-checks
@@ -1318,7 +1318,7 @@ myBiomodData_semibalanus_visual
 plot(myBiomodData_semibalanus_visual)
 ```
 
-Semibalanus - combined
+#### Data set 2 (Semibalanus - combined)
 
 ```{r}
 #| label: semibalanus-combined-model-data-checks
@@ -1365,9 +1365,7 @@ myBiomodData_semibalanus_combined
 plot(myBiomodData_semibalanus_combined)
 ```
 
-Now for Chthamalus.
-
-Visual only first.
+#### Data set 3 (Chthamalus - visual)
 
 ```{r}
 #| label: chthamalus-visual-model-data-checks
@@ -1413,7 +1411,7 @@ myBiomodData_chthamalus_visual
 plot(myBiomodData_chthamalus_visual)
 ```
 
-Now combined.
+#### Data set 4 (Chthamalus - combined)
 
 ```{r}
 #| label: chthamalus-combined-model-data-checks
@@ -1559,7 +1557,7 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.5, 0.7),
+  metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1571,28 +1569,28 @@ myBiomodEM_semibalanus_visual
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-combined-ensemble
+#| label: explore-model-semibalanus-visual-ensemble
 
 # Get evaluation scores & variables importance
-get_evaluations(myBiomodEM_semibalanus_combined)
-get_variables_importance(myBiomodEM_semibalanus_combined)
+get_evaluations(myBiomodEM_semibalanus_visual)
+get_variables_importance(myBiomodEM_semibalanus_visual)
 
 # Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, group.by = 'full.name')
-bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('algo', 'expl.var', 'merged.by.run'))
+bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, group.by = 'full.name')
+bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('expl.var', 'full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('algo', 'expl.var', 'merged.by.run'))
 
 # Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[c(1, 6, 7)],
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[c(1, 6, 7)],
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[7],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[7],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
 ```
@@ -1661,7 +1659,7 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.5, 0.7),
+  metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1673,31 +1671,258 @@ myBiomodEM_semibalanus_combined
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-combined-single
+#| label: explore-model-semibalanus-combined-ensemble
 
 # Get evaluation scores & variables importance
-get_evaluations(myBiomodModelOut_semibalanus_combined)
-get_variables_importance(myBiomodModelOut_semibalanus_combined)
+get_evaluations(myBiomodEM_semibalanus_combined)
+get_variables_importance(myBiomodEM_semibalanus_combined)
 
 # Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined)
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'expl.var', 'run'))
+bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, group.by = 'full.name')
+bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('algo', 'expl.var', 'merged.by.run'))
 
 # Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[c(1:3, 12:14)],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[c(1:3, 12:14)],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[3],
+bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[7],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
 ```
 
-Next, Chthalamus visual.
+#### Model 3 (Chthamalus - visual)
+
+```{r}
+#| label: run-model-chthamalus-visual-single
+
+# Model single models
+suppressWarnings({
+myBiomodModelOut_chthamalus_visual <- BIOMOD_Modeling(
+  bm.format = myBiomodData_chthamalus_visual,
+  models = c('GAM','GBM','RF','MAXENT'),
+  modeling.id = "chthamalus.visual",
+  CV.strategy = 'random',
+  CV.nb.rep = 2,
+  CV.perc = 0.7,
+  OPT.strategy = 'default',
+  var.import = 2,
+  metric.eval = c('TSS', 'ROC')
+)
+})
+
+get_options(myBiomodModelOut_chthamalus_visual)
+
+myBiomodModelOut_chthamalus_visual
+```
+
+```{r}
+#| label: explore-model-chthamalus-visual-single
+
+# Get evaluation scores & variables importance
+get_evaluations(myBiomodModelOut_chthamalus_visual)
+get_variables_importance(myBiomodModelOut_chthamalus_visual)
+
+# Represent evaluation scores & variables importance
+bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual)
+bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'algo'))
+bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'algo'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'expl.var', 'run'))
+
+# Represent response curves
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[c(1:3, 12:14)],
+                      fixed.var = 'median')
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[c(1:3, 12:14)],
+                      fixed.var = 'min')
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[3],
+                      fixed.var = 'median',
+                      do.bivariate = TRUE)
+```
+
+```{r}
+#| label: run-model-chthamalus-visual-ensemble
+
+# Model ensemble models (takes around 30 mins)
+suppressWarnings({
+myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
+  bm.mod = myBiomodModelOut_chthamalus_visual,
+  models.chosen = 'all',
+  em.by = 'all',
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  metric.select = c('TSS', 'ROC'),
+  metric.select.thresh = c(0.4, 0.65),
+  metric.eval = c('TSS', 'ROC'),
+  var.import = 2,
+  EMci.alpha = 0.05,
+  EMwmean.decay = 'proportional'
+)
+})
+
+myBiomodEM_chthamalus_visual
+```
+
+```{r}
+#| label: explore-model-chthamalus-visual-ensemble
+
+# Get evaluation scores & variables importance
+get_evaluations(myBiomodEM_chthamalus_visual)
+get_variables_importance(myBiomodEM_chthamalus_visual)
+
+# Represent evaluation scores & variables importance
+bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, group.by = 'full.name')
+bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('algo', 'expl.var', 'merged.by.run'))
+
+# Represent response curves
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[c(1, 6, 7)],
+                      fixed.var = 'median')
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[c(1, 6, 7)],
+                      fixed.var = 'min')
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[7],
+                      fixed.var = 'median',
+                      do.bivariate = TRUE)
+```
+
+#### Model 4 (Chthamalus - combined)
+
+```{r}
+#| label: run-model-chthamalus-combined-single
+
+# Model single models
+suppressWarnings({
+myBiomodModelOut_chthamalus_combined <- BIOMOD_Modeling(
+  bm.format = myBiomodData_chthamalus_combined,
+  models = c('GAM','GBM','RF','MAXENT'),
+  modeling.id = "chthamalus.combined",
+  CV.strategy = 'random',
+  CV.nb.rep = 2,
+  CV.perc = 0.7,
+  OPT.strategy = 'default',
+  var.import = 2,
+  metric.eval = c('TSS', 'ROC')
+)
+})
+
+get_options(myBiomodModelOut_chthamalus_combined)
+
+myBiomodModelOut_chthamalus_combined
+```
+
+```{r}
+#| label: explore-model-chthamalus-combined-single
+
+# Get evaluation scores & variables importance
+get_evaluations(myBiomodModelOut_chthamalus_combined)
+get_variables_importance(myBiomodModelOut_chthamalus_combined)
+
+# Represent evaluation scores & variables importance
+bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined)
+bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'algo'))
+bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'algo'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'expl.var', 'run'))
+
+# Represent response curves
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[c(1:3, 12:14)],
+                      fixed.var = 'median')
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[c(1:3, 12:14)],
+                      fixed.var = 'min')
+bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[3],
+                      fixed.var = 'median',
+                      do.bivariate = TRUE)
+```
+
+```{r}
+#| label: run-model-chthamalus-combined-ensemble
+
+# Model ensemble models (takes around 30 mins)
+suppressWarnings({
+myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
+  bm.mod = myBiomodModelOut_chthamalus_combined,
+  models.chosen = 'all',
+  em.by = 'all',
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  metric.select = c('TSS', 'ROC'),
+  metric.select.thresh = c(0.4, 0.65),
+  metric.eval = c('TSS', 'ROC'),
+  var.import = 2,
+  EMci.alpha = 0.05,
+  EMwmean.decay = 'proportional'
+)
+})
+
+myBiomodEM_chthamalus_combined
+```
+
+```{r}
+#| label: explore-model-chthamalus-combined-ensemble
+
+# Get evaluation scores & variables importance
+get_evaluations(myBiomodEM_chthamalus_combined)
+get_variables_importance(myBiomodEM_chthamalus_combined)
+
+# Represent evaluation scores & variables importance
+bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, group.by = 'full.name')
+bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'full.name', 'full.name'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
+bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('algo', 'expl.var', 'merged.by.run'))
+
+# Represent response curves
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[c(1, 6, 7)],
+                      fixed.var = 'median')
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[c(1, 6, 7)],
+                      fixed.var = 'min')
+bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[7],
+                      fixed.var = 'median',
+                      do.bivariate = TRUE)
+```
+
+### Forcasting change
+
+#### Forecast 1 (Semibalanus - visual)
+
+```{r}
+
+```
+
+#### Forecast 2  (Semibalanus - combined)
+
+```{r}
+
+```
+
+#### Forecast 3 (Chthamalus - visual)
+
+```{r}
+
+```
+
+#### Forecast 4 (Chthamalus - combined)
+
+```{r}
+
+```
