@@ -1800,28 +1800,60 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
                       do.bivariate = TRUE)
 ```
 
+### Predictions
+
+#### Prediction 1 (Semibalanus - visual)
+
+```{r}
+#| label: predict-model-semibalanus-visual
+
+myBiomodEMProj_ <- BIOMOD_EnsembleForecasting(bm.em = myBiomodEM_semibalanus_visual,
+                                             proj.name = 'CurrentEM',
+                                             new.env = myExpl,
+                                             models.chosen = 'all',
+                                             metric.binary = 'all',
+                                             metric.filter = 'all')
+
+```
+
+#### Prediction 2 (Semibalanus - combined)
+
+```{r}
+#| label: predict-model-semibalanus-combined
+
+```
+
+#### Prediction 3 (Chthamalus - visual)
+
+#### Prediction 4 (Chthamalus - combined)
+
 ### Forcasting change
 
 #### Forecast 1 (Semibalanus - visual)
 
 ```{r}
 #| label: forecast-model-semibalanus-visual
+
+
 ```
 
-#### Forecast 2  (Semibalanus - combined)
+#### Forecast 2 (Semibalanus - combined)
 
 ```{r}
 #| label: forecast-model-semibalanus-combined
+
 ```
 
 #### Forecast 3 (Chthamalus - visual)
 
 ```{r}
 #| label: forecast-model-chthamalus-visual
+
 ```
 
 #### Forecast 4 (Chthamalus - combined)
 
 ```{r}
 #| label: forecast-model-chthamalus-combined
+
 ```
