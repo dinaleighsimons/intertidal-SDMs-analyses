@@ -954,8 +954,13 @@ plot(enviro_vars_projected) # plots each decade
 ### Check co-linearity
 
 ```{r}
+#| label: check-colinearity
 
+#pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
+#pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
 ```
+
+We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables.
 
 ### Create final stack
 
@@ -1191,82 +1196,9 @@ na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is
 table(na_points) #only 2 NA points
 ```
 
-```{r}
-# setting random seed to always create the same
-# random set of points for this example
-##set.seed(0)
-#enviro_vars_current_rast <- rast(enviro_vars_current)
-#backgr <- spatSample(enviro_vars_current_rast,
-                     #500,
-                     #"random",
-                     #as.points = TRUE,
-                     #na.rm = TRUE)
-
-#absvals <- values(backgr)
-#pb <- c(rep(1, nrow(presvals_semibalanus_corrected)), rep(0, nrow(absvals)))
-#sdmdata <- data.frame(cbind(pb, rbind(presvals_semibalanus_corrected, absvals)))
-
-#head(sdmdata)
-#tail(sdmdata)
-#summary(sdmdata)
-```
-
-### Check co-linearity
-
-```{r}
-#| label: check-colinearity
-
-#pairs(sdmdata[,2:5], cex=0.1) #air temp and ocean temp highly correlate
-#pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
-```
-
-We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables.
-
-## Model fitting
-
-```{r}
-
-#m1 <- glm(pb ~ ocean_temp_2020 + ph_2020 + rocky_substrate, data=sdmdata)
-#class(m1)
-
-#summary(m1)
-```
-
-## Model prediction
-
-```{r}
-
-#bc <- envelope(presvals_semibalanus_corrected[,c("ocean_temp_2020", "ph_2020")])
-#bc
-
-#pr <- partialResponse(bc, presvals_semibalanus_corrected, "ocean_temp_2020")
-#plot(pr[[1]], type="l")
-```
-
-```{r}
-
-#names(enviro_vars_current_rast)
-#p <- predict(enviro_vars_current_rast, m1)
-
-# 'coastline' is a binary raster: 1 = coastline, NA or 0 = non-coast
-#prediction_masked <- mask(p, terrain)
-#plot(prediction_masked) # obviously this need to be restircted to rocky areas
-```
-
-```{r}
-
-# Convert to points
-#points_df <- as.data.frame(prediction_masked, xy = TRUE, na.rm = TRUE)
-#colnames(points_df)[3] <- "probability"
-
-#ggplot(points_df, aes(x = x, y = y, color = probability)) +
-  #geom_point(size = 0.6) +
-  #scale_color_viridis_c(name = "Habitat Suitability") +
-  #theme_minimal() +
-  #coord_fixed()
-```
-
 ## `biomod2` workflow
+
+We are going to build our models and forecasts using the `biomod2` package. We will build four models, visualise their outputs and forecast changes into the far future (2100).
 
 ### Data formatting
 
@@ -1471,33 +1403,15 @@ summary(myBiomodData_chthamalus_combined)
 
 Time to run our models!
 
-```{r}
-#| label: set-maxent-path
-
-# Set absolute or relative path to maxent.jar
-#maxent_jar_path <- file.path(getwd(), "Modelling_files", "maxent", "maxent.jar")
-#file.exists(maxent_jar_path)
-#maxent()
-
-# Check it exists
-#if (!file.exists(maxent_jar_path)) stop("maxent.jar not found at specified path")
-
-# Tell dismo where MaxEnt is
-#options(dismo.maxent = maxent_jar_path)
-
-#path_to_maxent.jar = paste(system.file(package="dismo"), "/java", sep='')
-```
-
 #### Model 1(Semibalanus - visual)
 
 ```{r}
 #| label: run-model-semibalanus-visual-single
 
 # Model single models
-suppressWarnings({
 myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
   bm.format = myBiomodData_semibalanus_visual,
-  models = c('GAM','GBM','RF','MAXENT'),
+  models = c('GAM','GLM','RF','MAXENT'),
   modeling.id = "Semibalanus.visual",
   CV.strategy = 'random',
   CV.nb.rep = 2,
@@ -1506,7 +1420,6 @@ myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
 )
-})
 
 # seed.val = 123)
 # nb.cpu = 8)
@@ -1549,13 +1462,12 @@ bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual,
 ```{r}
 #| label: run-model-semibalanus-visual-ensemble
 
-# Model ensemble models (takes around 30 mins)
-suppressWarnings({
+# Model ensemble models
 myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_semibalanus_visual,
   models.chosen = 'all',
   em.by = 'all',
-  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
   metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
@@ -1563,7 +1475,6 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   EMci.alpha = 0.05,
   EMwmean.decay = 'proportional'
 )
-})
 
 myBiomodEM_semibalanus_visual
 ```
@@ -1601,10 +1512,9 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual,
 #| label: run-model-semibalanus-combined-single
 
 # Model single models
-suppressWarnings({
 myBiomodModelOut_semibalanus_combined <- BIOMOD_Modeling(
   bm.format = myBiomodData_semibalanus_combined,
-  models = c('GAM','GBM','RF','MAXENT'),
+  models = c('GAM','GLM','RF','MAXENT'),
   modeling.id = "Semibalanus.combined",
   CV.strategy = 'random',
   CV.nb.rep = 2,
@@ -1613,7 +1523,6 @@ myBiomodModelOut_semibalanus_combined <- BIOMOD_Modeling(
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
 )
-})
 
 get_options(myBiomodModelOut_semibalanus_combined)
 
@@ -1651,13 +1560,12 @@ bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined,
 ```{r}
 #| label: run-model-semibalanus-combined-ensemble
 
-# Model ensemble models (takes around 30 mins)
-suppressWarnings({
+# Model ensemble models
 myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_semibalanus_combined,
   models.chosen = 'all',
   em.by = 'all',
-  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
   metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
@@ -1665,7 +1573,6 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   EMci.alpha = 0.05,
   EMwmean.decay = 'proportional'
 )
-})
 
 myBiomodEM_semibalanus_combined
 ```
@@ -1703,10 +1610,9 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined,
 #| label: run-model-chthamalus-visual-single
 
 # Model single models
-suppressWarnings({
 myBiomodModelOut_chthamalus_visual <- BIOMOD_Modeling(
   bm.format = myBiomodData_chthamalus_visual,
-  models = c('GAM','GBM','RF','MAXENT'),
+  models = c('GAM','GLM','RF','MAXENT'),
   modeling.id = "chthamalus.visual",
   CV.strategy = 'random',
   CV.nb.rep = 2,
@@ -1715,7 +1621,6 @@ myBiomodModelOut_chthamalus_visual <- BIOMOD_Modeling(
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
 )
-})
 
 get_options(myBiomodModelOut_chthamalus_visual)
 
@@ -1754,12 +1659,11 @@ bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual,
 #| label: run-model-chthamalus-visual-ensemble
 
 # Model ensemble models (takes around 30 mins)
-suppressWarnings({
 myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_chthamalus_visual,
   models.chosen = 'all',
   em.by = 'all',
-  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
   metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
@@ -1767,7 +1671,6 @@ myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   EMci.alpha = 0.05,
   EMwmean.decay = 'proportional'
 )
-})
 
 myBiomodEM_chthamalus_visual
 ```
@@ -1805,10 +1708,9 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual,
 #| label: run-model-chthamalus-combined-single
 
 # Model single models
-suppressWarnings({
 myBiomodModelOut_chthamalus_combined <- BIOMOD_Modeling(
   bm.format = myBiomodData_chthamalus_combined,
-  models = c('GAM','GBM','RF','MAXENT'),
+  models = c('GAM','GLM','RF','MAXENT'),
   modeling.id = "chthamalus.combined",
   CV.strategy = 'random',
   CV.nb.rep = 2,
@@ -1817,7 +1719,6 @@ myBiomodModelOut_chthamalus_combined <- BIOMOD_Modeling(
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
 )
-})
 
 get_options(myBiomodModelOut_chthamalus_combined)
 
@@ -1856,12 +1757,11 @@ bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined,
 #| label: run-model-chthamalus-combined-ensemble
 
 # Model ensemble models (takes around 30 mins)
-suppressWarnings({
 myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_chthamalus_combined,
   models.chosen = 'all',
   em.by = 'all',
-  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMmedian', 'EMca', 'EMwmean'),
+  em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
   metric.select.thresh = c(0.4, 0.65),
   metric.eval = c('TSS', 'ROC'),
@@ -1869,7 +1769,6 @@ myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   EMci.alpha = 0.05,
   EMwmean.decay = 'proportional'
 )
-})
 
 myBiomodEM_chthamalus_combined
 ```
@@ -1906,23 +1805,23 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
 #### Forecast 1 (Semibalanus - visual)
 
 ```{r}
-
+#| label: forecast-model-semibalanus-visual
 ```
 
 #### Forecast 2  (Semibalanus - combined)
 
 ```{r}
-
+#| label: forecast-model-semibalanus-combined
 ```
 
 #### Forecast 3 (Chthamalus - visual)
 
 ```{r}
-
+#| label: forecast-model-chthamalus-visual
 ```
 
 #### Forecast 4 (Chthamalus - combined)
 
 ```{r}
-
+#| label: forecast-model-chthamalus-combined
 ```
