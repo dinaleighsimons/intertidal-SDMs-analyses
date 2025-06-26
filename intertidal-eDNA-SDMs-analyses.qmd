@@ -14,7 +14,7 @@ warning: false
 
 This pipeline replicates all analyses in Simons *et al* (2025) "Predicting distributional ranges of rocky intertidal species using a multi-dataset approach".
 
-Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide, and biomod2 tutorials.
+Multiple resources have been used in this pipeline, including this [SDM guide](https://rspatial.org/sdm/index.html), Tom's Euro benthos habitat species guide, and `biomod2` tutorials.
 
 ## Set-up
 
@@ -1807,13 +1807,14 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
 ```{r}
 #| label: predict-model-semibalanus-visual
 
-myBiomodEMProj_ <- BIOMOD_EnsembleForecasting(bm.em = myBiomodEM_semibalanus_visual,
-                                             proj.name = 'CurrentEM',
-                                             new.env = myExpl,
-                                             models.chosen = 'all',
-                                             metric.binary = 'all',
-                                             metric.filter = 'all')
-
+myBiomodEMProj_semibalanus_visual <- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_semibalanus_visual,
+  proj.name = 'CurrentEM.semibalanus.visual',
+  new.env = myExpl,
+  models.chosen = 'all',
+  metric.binary = 'all',
+  metric.filter = 'all'
+)
 ```
 
 #### Prediction 2 (Semibalanus - combined)
@@ -1821,13 +1822,21 @@ myBiomodEMProj_ <- BIOMOD_EnsembleForecasting(bm.em = myBiomodEM_semibalanus_vis
 ```{r}
 #| label: predict-model-semibalanus-combined
 
+myBiomodEMProj_semibalanus_combined <- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_semibalanus_combined,
+  proj.name = 'CurrentEM.semibalanus.combined',
+  new.env = myExpl,
+  models.chosen = 'all',
+  metric.binary = 'all',
+  metric.filter = 'all'
+)
 ```
 
 #### Prediction 3 (Chthamalus - visual)
 
 #### Prediction 4 (Chthamalus - combined)
 
-### Forcasting change
+### Forecasting change
 
 #### Forecast 1 (Semibalanus - visual)
 
