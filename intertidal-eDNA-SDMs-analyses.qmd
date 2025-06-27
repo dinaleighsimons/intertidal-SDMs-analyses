@@ -948,7 +948,7 @@ enviro_vars_future <- stack(
     #rock_ukash_rast
     ))
 
-plot(enviro_vars_projected) # plots each decade
+plot(enviro_vars_future) # plots each decade
 ```
 
 ### Check co-linearity
