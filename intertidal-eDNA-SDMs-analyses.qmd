@@ -440,6 +440,11 @@ Let's plot our occurrences on a map. Grey points are sources from GBIF, green po
 ```{r}
 #| label: plot-occurance-GBIF-data-semibalanus-ggplot
 
+# colours
+GBIF_colour = "#D6B11F"
+MarClim_colour = "#D44953"
+eDNA_colour= "#70CBFF"
+
 # Base ggplot map
 semibalanus_map <- ggplot() +
   geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
@@ -453,9 +458,9 @@ semibalanus_map <- ggplot() +
   theme_minimal() +
   labs(x = "Longitude", y = "Latitude", color = "Data source") +
   scale_color_manual(values = c(
-    "GBIF" = "darkgrey",
-    "MarClim" = "lightgreen",
-    "eDNA" = "navy"
+    "GBIF" = GBIF_colour,
+    "MarClim" = MarClim_colour,
+    "eDNA" = eDNA_colour
   )) +
   theme(legend.position = "none")
 
@@ -469,6 +474,24 @@ ggsave(semibalanus_map, filename = "Figures/semibalanus_map.png", width = 8, hei
 #| label: plot-occurance-GBIF-data-chthamalus-ggplot
 
 # Base ggplot map
+chthamalus_map_legend <- ggplot() +
+  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  
+  # need to jitter points a bit so that some are not hidden
+  geom_jitter(data = final_combined_chthamalus, 
+              aes(x = lon, y = lat, color = source), 
+              size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
+  
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude", color = "Data source") +
+  scale_color_manual(values = c(
+    "GBIF" = GBIF_colour,
+    "MarClim" = MarClim_colour,
+    "eDNA" = eDNA_colour
+  )) +
+  theme(legend.position = "bottom")
+
 chthamalus_map <- ggplot() +
   geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
   
@@ -481,10 +504,11 @@ chthamalus_map <- ggplot() +
   theme_minimal() +
   labs(x = "Longitude", y = "Latitude", color = "Data source") +
   scale_color_manual(values = c(
-    "GBIF" = "darkgrey",
-    "MarClim" = "lightgreen",
-    "eDNA" = "navy"
-  ))
+    "GBIF" = GBIF_colour,
+    "MarClim" = MarClim_colour,
+    "eDNA" = eDNA_colour
+  )) +
+  theme(legend.position = "none")
 
 chthamalus_map
 
@@ -493,14 +517,39 @@ ggsave(chthamalus_map, filename = "Figures/chthamalus_map.png", width = 8, heigh
 ```
 
 ```{r}
+#| label: get-legend-for-plot
+
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+}
+
+legend <- g_legend(chthamalus_map_legend)
+```
+
+```{r}
 #| label: joint-map-twospecies
 
-joint_map <- cowplot::plot_grid(semibalanus_map, chthamalus_map, labels = c("a", "b"),rel_widths = c(1,1.5) )
+joint_map <- cowplot::plot_grid(
+  cowplot::plot_grid(semibalanus_map, chthamalus_map, ncol = 2, labels = c("a", "b"), rel_heights = c(0.8, 1)), legend, ncol =1, rel_heights = c(1, 0.06))
+
 
 joint_map
 
 # Save the plot
-ggsave(joint_map, filename = "Figures/chthamalus_semibalanus_map.png", width = 11, height = 6, dpi = 300)
+ggsave(joint_map, filename = "Figures/chthamalus_semibalanus_map.png", width = 6, height = 4, dpi = 300)
+```
+
+```{r}
+#| label: joint-map-twospecies-long
+
+joint_map_long <- cowplot::plot_grid(semibalanus_map, chthamalus_map, labels = c("a", "b"),rel_widths = c(1,1.5), ncol = 1, align = "v" )
+
+joint_map_long
+
+# Save the plot
+ggsave(joint_map_long, filename = "Figures/chthamalus_semibalanus_map_long.png", width = 6, height = 11, dpi = 300)
 ```
 
 ```{r}
@@ -912,7 +961,7 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 #ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
-### Create intial stack
+### Create initial stack
 
 ```{r}
 #| label: create-stacks
@@ -1249,12 +1298,12 @@ myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
 )
 
 myBiomodData_semibalanus_visual
-data_semibalanus_visual_plot <- plot(myBiomodData_semibalanus_visual)
 
-#data_semibalanus_visual_plot
-
-# Save the plot
-#ggsave(data_semibalanus_visual_plot, filename = "Figures/data_semibalanus_visual_plot.png", width = 8, height = 6, dpi = 300)
+# Save BIOMOD_FormatingData plot to PNG
+png("Figures/myBiomodData_semibalanus_visual.png", 
+    width = 2000, height = 1500, res = 300)  # size in pixels, resolution in DPI
+plot(myBiomodData_semibalanus_visual)
+dev.off()
 ```
 
 #### Data set 2 (Semibalanus - combined)
@@ -1303,11 +1352,12 @@ myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
 )
 
 myBiomodData_semibalanus_combined
-data_semibalanus_combined_plot <- plot(myBiomodData_semibalanus_combined)
-#data_semibalanus_combined_plot
 
-# Save the plot
-#ggsave(data_semibalanus_combined_plot, filename = "Figures/data_semibalanus_combined_plot.png", width = 8, height = 6, dpi = 300)
+# Save BIOMOD_FormatingData plot to PNG
+png("Figures/myBiomodData_semibalanus_combined.png", 
+    width = 2000, height = 1500, res = 300)  # size in pixels, resolution in DPI
+plot(myBiomodData_semibalanus_combined)
+dev.off()
 ```
 
 #### Data set 3 (Chthamalus - visual)
@@ -1356,11 +1406,11 @@ myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
 
 myBiomodData_chthamalus_visual
 
-data_chthamalus_visual_plot <- plot(myBiomodData_chthamalus_visual)
-#data_chthamalus_visual_plot
-
-# Save the plot
-#ggsave(data_chthamalus_visual_plot, filename = "Figures/data_chthamalus_visual_plot.png", width = 8, height = 6, dpi = 300)
+# Save BIOMOD_FormatingData plot to PNG
+png("Figures/myBiomodData_chthamalus_visual.png", 
+    width = 2000, height = 1500, res = 300)  # size in pixels, resolution in DPI
+plot(myBiomodData_chthamalus_visual)
+dev.off()
 ```
 
 #### Data set 4 (Chthamalus - combined)
@@ -1408,11 +1458,11 @@ myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
 
 myBiomodData_chthamalus_combined
 
-data_chthamalus_combined_plot <- plot(myBiomodData_chthamalus_combined)
-#data_chthamalus_combined_plot
-
-# Save the plot
-#ggsave(data_chthamalus_combined_plot, filename = "Figures/data_data_chthamalus_combined_plot.png", width = 8, height = 6, dpi = 300)
+# Save BIOMOD_FormatingData plot to PNG
+png("Figures/myBiomodData_chthamalus_combined.png", 
+    width = 2000, height = 1500, res = 300)  # size in pixels, resolution in DPI
+plot(myBiomodData_chthamalus_combined)
+dev.off()
 ```
 
 We now have four `biomod` objects ready for modelling.
