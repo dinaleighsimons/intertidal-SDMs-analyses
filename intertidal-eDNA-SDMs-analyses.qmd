@@ -961,41 +961,56 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 #ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
-### Create initial stack
+To get a better coverage, let's import rocky habitat information from JNCC Marine Recorder Public UK snapshot.
+
+```{r}
+#| label: read-in-JNCC-snapshot-data
+
+
+```
+
+### Create stacks
 
 ```{r}
 #| label: create-stacks
 
 # stack
-enviro_vars_current <- stack(
-  c(ocean_temp_present,
-    air_temp_present,
-    ph_present,
-    terrain
-    #rock_ukash_rast
-    ))
+enviro_vars_current <- stack(c(
+  ocean_temp_present["thetao_mean_2"],
+  #air_temp_present,
+  ph_present["ph_mean_2"],
+  terrain
+  #rock_ukash_rast
+))
 
 names(enviro_vars_current) <- c(
-  "ocean_temp_2000",
-  "ocean_temp_2020",
-  "air_temp_2000",
-  "air_temp_2020",
-  "ph_2000",
-  "ph_2020",
+  "ocean_temp",
+  #"air_temp_2000",
+  #"air_temp_2020",
+  "ph",
   "coastline_binary"
+  #"rocky_substrate
 )
-#, "rocky_substrate")
 
 names(enviro_vars_current)
 plot(enviro_vars_current) # plots each decade
 
-enviro_vars_future <- stack(
-  c(ocean_temp_projected,
-    air_temp_projected,
-    ph_projected,
-    terrain#,
-    #rock_ukash_rast
-    ))
+enviro_vars_future <- stack(c(
+  ocean_temp_projected["thetao_mean_8"],
+  #air_temp_projected,
+  ph_projected["ph_mean_8"],
+  terrain
+  #rock_ukash_rast
+))
+
+names(enviro_vars_future) <- c(
+  "ocean_temp",
+  #"air_temp_2000",
+  #"air_temp_2020",
+  "ph",
+  "coastline_binary"
+  #"rocky_substrate
+)
 
 plot(enviro_vars_future) # plots each decade
 ```
@@ -1009,13 +1024,7 @@ plot(enviro_vars_future) # plots each decade
 #pairs(sdmdata[,5:8], cex=0.1) #pH with temp looks fine
 ```
 
-We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables.
-
-### Create final stack
-
-```{r}
-
-```
+We can see that air temp and ocean temp are highly correlated, hence we only want to use one of these variables. Ocean temp is a clear driver of biological coastal communities, so we've removed air temp.
 
 ## Creating SDM data sets
 
@@ -1031,7 +1040,7 @@ Semibalanus
 final_visual_semibalanus  <- final_visual_semibalanus[,-1]
 
 # plot
-plot(enviro_vars_current, 2, col = cols)
+plot(enviro_vars_current, 1, col = cols)
 lines(wrld)
 points(final_visual_semibalanus$lon, final_visual_semibalanus$lat, col = 'blue')
 ```
@@ -1045,7 +1054,7 @@ Chthamalus
 chthamalus_montagui_obs_both_methods <- chthamalus_montagui_obs_both_methods[,-1]
 
 #plot
-plot(enviro_vars_current, 2, col = cols)
+plot(enviro_vars_current, 1, col = cols)
 lines(wrld)
 points(chthamalus_montagui_obs_both_methods,
        col='blue')
@@ -1218,7 +1227,7 @@ head(chthamalus_corrected_gbif)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_chthamalus_corrected_gbif, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 2 NA points
+table(na_points) #only 3 NA points
 ```
 
 ```{r}
@@ -1242,14 +1251,18 @@ head(chthamalus_corrected_combined)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 2 NA points
+table(na_points) #only 3 NA points
 ```
 
 ## `biomod2` workflow
 
-We are going to build our models and forecasts using the `biomod2` package. We will build four models, visualise their outputs and forecast changes into the far future (2100).
+We are going to build our models and forecasts using the `biomod2` package. We will build four models, visualize their outputs and forecast changes into the far future (2100).
 
 ### Data formatting
+
+For our models, the GBIF and eDNA data will be used to build the individual models, being split for instance 10 times into 70/30 percentages to cross-validate them (which is defined in the next section).
+
+The MarClim data will be used to evaluate all models (individual or ensemble) - this is defined when formatting the data in this section.
 
 #### Data set 1 (Semibalanus - visual)
 
@@ -1492,9 +1505,9 @@ myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
   bm.format = myBiomodData_semibalanus_visual,
   models = c('GAM','GLM','RF','MAXENT'),
   modeling.id = "Semibalanus.visual",
-  CV.strategy = 'random',
-  CV.nb.rep = 2,
-  CV.perc = 0.7,
+  CV.strategy = 'random', #cross-validation selection strategy
+  CV.nb.rep = 2, #number of sets of cross-validation points
+  CV.perc = 0.7, #percentage kept for calibration
   OPT.strategy = 'default',
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
@@ -1552,7 +1565,7 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.65),
+  metric.select.thresh = c(0.3, 0.6),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1658,7 +1671,7 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.65),
+  metric.select.thresh = c(0.3, 0.6),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1764,7 +1777,7 @@ myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.65),
+  metric.select.thresh = c(0.3, 0.6),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1870,7 +1883,7 @@ myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.65),
+  metric.select.thresh = c(0.3, 0.6),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1923,8 +1936,8 @@ myBiomodEMProj_semibalanus_visual <- BIOMOD_EnsembleForecasting(
   proj.name = 'CurrentEM.semibalanus.visual',
   new.env = enviro_vars_current,
   models.chosen = 'all',
-  metric.binary = 'all',
-  metric.filter = 'all'
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProj_semibalanus_visual
@@ -1998,36 +2011,26 @@ plot(myBiomodEMProj_chthamalus_combined)
 ```{r}
 #| label: forecast-model-semibalanus-visual
 #| echo: true
-#| results: hide
 
-#myBiomodProjectionFuture_semibalanus_visual <- BIOMOD_Projection(
-  #bm.mod = myBiomodModelOut_semibalanus_visual,
-  #proj.name = 'Future.semibalanus.visual',
-  #new.env = enviro_vars_future,
-  #models.chosen = 'all',
-  #metric.binary = 'ROC',
-  #build.clamping.mask = TRUE
-#)
+myBiomodEMProjFuture_semibalanus_visual <- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_semibalanus_visual,
+  proj.name = 'FutureEM.semibalanus.visual',
+  new.env = enviro_vars_future,
+  models.chosen = 'all',
+  metric.binary = 'TSS'
+  #metric.filter = 'TSS'
+)
+
+myBiomodEMProjFuture_semibalanus_visual
+plot(myBiomodEMProjFuture_semibalanus_visual)
 
 # Compute differences
-#myBiomodRangeSize_semibalanus_visual <- BIOMOD_RangeSize(
-  #proj.current = myBiomodProj_semibalanus_visual,
-  #proj.future = myBiomodProjectionFuture_semibalanus_visual,
-  #metric.binary = 'ROC'
-#)
+myBiomodRangeSize <- BIOMOD_RangeSize(
+  proj.current = myBiomodEMProj_semibalanus_visual,
+  proj.future = myBiomodEMProjFuture_semibalanus_visual,
+  metric.binary = "TSS"
+)
 
-#myBiomodRangeSize_semibalanus_visual$Compt.By.Models
-#plot(myBiomodRangeSize_semibalanus_visual$Diff.By.Pixel)
-
-# Represent main results 
-#gg_semibalanus_visual = bm_PlotRangeSize(
-  #bm.range = myBiomodRangeSize_semibalanus_visual,
-  #do.count = TRUE,
-  #do.perc = TRUE,
-  #do.maps = TRUE,
-  #do.mean = TRUE,
-  #do.plot = TRUE
-#)
 ```
 
 #### Forecast 2 (Semibalanus - combined)
