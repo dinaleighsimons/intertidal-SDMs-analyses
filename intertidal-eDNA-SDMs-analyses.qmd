@@ -486,7 +486,7 @@ eDNA_colour= "#70CBFF"
 
 # Base ggplot map
 semibalanus_map <- ggplot() +
-  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
   
   # Add all points with color mapped to 'source'
   geom_jitter(data = final_combined_semibalanus, 
@@ -514,7 +514,7 @@ ggsave(semibalanus_map, filename = "Figures/semibalanus_map.png", width = 8, hei
 
 # Base ggplot map
 chthamalus_map_legend <- ggplot() +
-  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
   
   # need to jitter points a bit so that some are not hidden
   geom_jitter(data = final_combined_chthamalus, 
@@ -532,7 +532,7 @@ chthamalus_map_legend <- ggplot() +
   theme(legend.position = "bottom")
 
 chthamalus_map <- ggplot() +
-  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
   
   # need to jitter points a bit so that some are not hidden
   geom_jitter(data = final_combined_chthamalus, 
@@ -577,7 +577,7 @@ joint_map <- cowplot::plot_grid(
 joint_map
 
 # Save the plot
-ggsave(joint_map, filename = "Figures/chthamalus_semibalanus_map.png", width = 6, height = 4, dpi = 300)
+ggsave(joint_map, filename = "Figures/chthamalus_semibalanus_map.png", width = 8, height = 6, dpi = 300)
 ```
 
 ```{r}
@@ -970,41 +970,41 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 #| include: false
 
 # Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
-#gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
+gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
 
 # List available layers
-#st_layers(gdb_path)
+st_layers(gdb_path)
 
 # read in
-#ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
+ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
 
 # explore
-#print(ukash)
+print(ukash)
 
 # filter for rocky only
-#rock_ukash <- ukash %>%
-  #filter(str_detect(str_to_lower(OrigName), "rock"))
+rock_ukash <- ukash %>%
+  filter(str_detect(str_to_lower(OrigName), "rock"))
 
 # make a raster and match format to the other environmental variables
-#rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
+rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
 
 # read in
-#rocky_substrate_mosaic
+rocky_substrate_mosaic
 
 # plot
-#rock_ukash_plot <- ggplot(rock_ukash) +
-  #geom_sf(aes(fill = OrigName)) +
-  #scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
-  #coord_sf(crs = 4326) +
-  #theme_minimal() +
-  #labs(
-    #title = "UKASH Mosaic Localised Rock Habitat Map",
-    #x = "Longitude", y = "Latitude"
-  #) + theme(legend.position = "none")
+rock_ukash_plot <- ggplot(rock_ukash) +
+  geom_sf(aes(fill = OrigName)) +
+  scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  coord_sf(crs = 4326) +
+  theme_minimal() +
+  labs(
+    title = "UKASH Mosaic Localised Rock Habitat Map",
+    x = "Longitude", y = "Latitude"
+  ) + theme(legend.position = "none")
 
-#rock_ukash_plot
+rock_ukash_plot
 
-#ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
+ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
 To get a better coverage, let's import rocky habitat information from JNCC Marine Recorder Public UK snapshot.
@@ -1017,52 +1017,52 @@ Two Microsoft access databases (primary and secondary) are available at <https:/
 #| include: false
 
 # lists the drivers already installed for excel, access ect...
-#unique(odbc::odbcListDrivers()[[1]])
+unique(odbc::odbcListDrivers()[[1]])
 
 # set database locations
-#primary_dbname <- "Data/Environmental_data/JNCC/SnapshotDatav52_PUBLIC_20220124.mdb"
-#secondary_dbname <- "Data/Environmental_data/JNCC//SnapshotDatav52_PUBLIC_20220124_secondary.mdb"
+primary_dbname <- "Data/Environmental_data/JNCC/SnapshotDatav52_PUBLIC_20220124.mdb"
+secondary_dbname <- "Data/Environmental_data/JNCC//SnapshotDatav52_PUBLIC_20220124_secondary.mdb"
 
 # Establish connections between R and Access
-#RODBC::odbcCloseAll() # clear any existing
-#primary_con <- RODBC::odbcConnectAccess2007(primary_dbname)
-#secondary_con <- RODBC::odbcConnectAccess2007(secondary_dbname)
+RODBC::odbcCloseAll() # clear any existing
+primary_con <- RODBC::odbcConnectAccess2007(primary_dbname)
+secondary_con <- RODBC::odbcConnectAccess2007(secondary_dbname)
 
-#RODBC::sqlTables(primary_con)
-#RODBC::sqlTables(secondary_con)
+RODBC::sqlTables(primary_con)
+RODBC::sqlTables(secondary_con)
 
 # Fetch the data from the SampleBiotopeAll table
-#locations <- RODBC::sqlFetch(primary_con, "Location", rownames = T)
-#SampleBiotopeAll <- RODBC::sqlFetch(secondary_con, "SampleBiotopeAll", rownames = T)
+locations <- RODBC::sqlFetch(primary_con, "Location", rownames = T)
+SampleBiotopeAll <- RODBC::sqlFetch(secondary_con, "SampleBiotopeAll", rownames = T)
 
 # Pull all the Biotope occurrence keys littoral habitats
-#Biotope_littoral <- SampleBiotopeAll %>%
-  #dplyr::filter(grepl("LR", BiotopeCode))  # matches any LR entries (includes eulittoral)
+Biotope_littoral <- SampleBiotopeAll %>%
+  dplyr::filter(grepl("LR", BiotopeCode))  # matches any LR entries (includes eulittoral)
 
 # join
-#biotype_location <- left_join(Biotope_littoral, locations, by = "ObjectId")
-#biotype_location_reduced <- biotype_location %>% select(ObjectId, BiotopeCode, Lat, Long, LatWGS84, LongWGS84, Qualifier, CoordinateSystem) %>% na.omit()
+biotype_location <- left_join(Biotope_littoral, locations, by = "ObjectId")
+biotype_location_reduced <- biotype_location %>% select(ObjectId, BiotopeCode, Lat, Long, LatWGS84, LongWGS84, Qualifier, CoordinateSystem) %>% na.omit()
 
 # remove uncertain 
-#biotype_location_reduced_certain <- biotype_location_reduced %>%
-  #dplyr::filter(!grepl("Uncertain", Qualifier))
+biotype_location_reduced_certain <- biotype_location_reduced %>%
+  dplyr::filter(!grepl("Uncertain", Qualifier))
 
 #visualise - looks like a some points are incorrect
-#rocky_map <- ggplot() +
-  #geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+rocky_map <- ggplot() +
+  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
   
   # Add all points with color mapped to 'source'
-  #geom_jitter(data = biotype_location_reduced, 
-              #aes(x = LongWGS84, y = LatWGS84, colour = Qualifier), 
-              #size = 0.8, width = 0.025, height = 0.025) +
-  #coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
-  #theme_minimal() +
-  #labs(x = "Longitude", y = "Latitude") #+
-  #theme(legend.position = "none")
+  geom_jitter(data = biotype_location_reduced, 
+              aes(x = LongWGS84, y = LatWGS84, colour = Qualifier), 
+              size = 0.8, width = 0.025, height = 0.025) +
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude") #+
+  theme(legend.position = "none")
 
-#rocky_map
+rocky_map
 
-#ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
+ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
 ```
 
 ```{r}
@@ -1071,40 +1071,40 @@ Two Microsoft access databases (primary and secondary) are available at <https:/
 #| include: false
 
 # Convert raster coastline (value=1 for land) to polygons
-#coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
+coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
 
 # Keep only the polygons where coastline == 1
-#coast_poly <- coast_poly[coast_poly$coastline == 1, ]
+coast_poly <- coast_poly[coast_poly$coastline == 1, ]
 
 # Buffer (in degrees — ~0.01° ≈ 1.1 km at equator)
-#buffer_dist <- 0.03  # adjust based on desired intertidal width
-#coast_poly_buffered <- terra::buffer(coast_poly, width = buffer_dist)
+buffer_dist <- 0.03  # adjust based on desired intertidal width
+coast_poly_buffered <- terra::buffer(coast_poly, width = buffer_dist)
 
 # Make a SpatVector from Lat/Long WGS84
-#biotype_vect <- vect(
-  #biotype_location_reduced,
-  #geom = c("LongWGS84", "LatWGS84"), 
-  #crs = "OGC:CRS84"
-#)
+biotype_vect <- vect(
+  biotype_location_reduced,
+  geom = c("LongWGS84", "LatWGS84"), 
+  crs = "OGC:CRS84"
+)
 
 # Intersect points with buffered polygon
-#biotype_onshore_vect <- terra::intersect(biotype_vect, coast_poly_buffered)
+biotype_onshore_vect <- terra::intersect(biotype_vect, coast_poly_buffered)
 
 # Convert points and polygon to sf
-#biotype_sf <- st_as_sf(biotype_onshore_vect)
-#coast_sf   <- st_as_sf(coast_poly_buffered)
+biotype_sf <- st_as_sf(biotype_onshore_vect)
+coast_sf   <- st_as_sf(coast_poly_buffered)
 
 # Plot
-#jncc_snapshot_littorial_tidy_map <- ggplot() +
-  #geom_sf(data = coast_sf, fill = "lightgray", color = "lightblue") +
-  #geom_sf(data = biotype_sf, size = 1, color = "orange") +
-  #coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) + # adjust to your study area
-  #theme_minimal() +
-  #theme(legend.position = "none")
+jncc_snapshot_littorial_tidy_map <- ggplot() +
+  geom_sf(data = coast_sf, fill = "lightgray", color = "lightblue") +
+  geom_sf(data = biotype_sf, size = 1, color = "orange") +
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) + # adjust to your study area
+  theme_minimal() +
+  theme(legend.position = "none")
 
-#jncc_snapshot_littorial_tidy_map
+jncc_snapshot_littorial_tidy_map
 
-#ggsave(jncc_snapshot_littorial_tidy_map, filename = "Figures/jncc_snapshot_littorial_tidy_map.jpeg", width = 5, height= 8)
+ggsave(jncc_snapshot_littorial_tidy_map, filename = "Figures/jncc_snapshot_littorial_tidy_map.jpeg", width = 5, height= 8)
 ```
 
 Let's combined the two JNCC sources so we have the best cover for our environmental rocky variable.
@@ -1115,24 +1115,38 @@ Let's combined the two JNCC sources so we have the best cover for our environmen
 #| include: false
 
 # Ensure CRS matches
-#biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
+biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
 
 # Keep biotype_sf for later use (this is your vector dataset)
 
 # Convert sf to SpatVector for rasterising
-#biotype_vect <- vect(biotype_sf)
+biotype_vect <- vect(biotype_sf)
 
 # Create a template raster
-#rocky_template <- rast(rock_ukash_rast)
+rocky_template <- rast(rock_ukash_rast)
 
 # Rasterise points
-#rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = 0)
+rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = NA)
 
 # Combine with existing rock raster
-#combined_rock_rast <- cover(rock_ukash_rast, rocky_rast)
+combined_rock_rast <- cover(rocky_rast, rock_ukash_rast)
 
 # Plot
-#plot(combined_rock_rast, main = "Rocky substrate (binary)")
+plot(combined_rock_rast, main = "Rocky substrate (binary)", col = "grey10")
+res(combined_rock_rast) #0.05 x 0.05
+
+# expand radius
+# Calculate distance from rocky areas (in map units, e.g., meters)
+dist_rast <- distance(combined_rock_rast)
+
+# Keep only cells within 5 km
+expanded_rock <- dist_rast <= 8000
+
+# Convert to binary (1 = rocky/within 1 km, NA = non-rocky)
+expanded_rock[expanded_rock == 0] <- NA
+expanded_rock[expanded_rock == 1] <- 1
+
+plot(expanded_rock, main = "Expanded rocky substrate", col = "grey10")
 
 # Convert combined raster back to sf polygons if you want an sf version
 #combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
@@ -1149,7 +1163,7 @@ Let's combined the two JNCC sources so we have the best cover for our environmen
 #combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
 
 # make a raster and match format to the other environmental variables
-#rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present)
+#rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present
 ```
 
 ### Wave fetch (Burrows)
@@ -2215,6 +2229,8 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
 
 ### Current projections
 
+We are going to run projections and mask our rocky substrate layer over projections. This ensures that any areas without rocky habitats won't be included in our final maps.
+
 #### Projection 1 (Semibalanus - visual)
 
 ```{r}
@@ -2236,7 +2252,63 @@ myBiomodEMProj_semibalanus_visual <- BIOMOD_EnsembleForecasting(
 )
 
 myBiomodEMProj_semibalanus_visual
-plot(myBiomodEMProj_semibalanus_visual)
+
+# visualise
+proj_semibalanus_visual <- get_predictions(myBiomodEMProj_semibalanus_visual) # returns a rasterLayer
+plot(proj_semibalanus_visual)
+
+# after rocky mask
+proj_semibalanus_visual_masked <- mask(proj_semibalanus_visual, expanded_rock)
+plot(proj_semibalanus_visual_masked)
+```
+
+```{r}
+#| label: plots-current-protection-semibal-visual
+
+# Choose the first layer
+r_layer <- proj_semibalanus_visual_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE)
+colnames(r_df) <- c("x", "y", "suitability")
+
+# Load UK outline
+uk <- rnaturalearth::ne_countries(country = "United Kingdom",
+                                  scale = "large",
+                                  returnclass = "sf")
+# plot
+semibalanus_visual_current_plot_TSS <- ggplot() +
+  geom_sf(
+    data = uk,
+    fill = "grey98",       # land
+    color = "grey80",
+    size = 0.7
+  ) +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
+  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  coord_sf(
+    xlim = c(-11, 2.6),
+    ylim = c(49.35, 60.9),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  labs(fill = NULL) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plotting height
+      barwidth  = unit(0.02, "npc"),  # slim vertical bar
+      title.position = "top"
+    )
+  ) +
+  theme(
+    legend.position = "right",        # place bar to the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+semibalanus_visual_current_plot_TSS
 ```
 
 #### Projection 2 (Semibalanus - combined)
@@ -2258,7 +2330,58 @@ myBiomodEMProj_semibalanus_combined <- BIOMOD_EnsembleForecasting(
 )
 
 myBiomodEMProj_semibalanus_combined
-plot(myBiomodEMProj_semibalanus_combined)
+
+# visualise
+proj_semibalanus_combined <- get_predictions(myBiomodEMProj_semibalanus_combined) # returns a rasterLayer
+plot(proj_semibalanus_combined)
+
+# after rocky mask
+proj_semibalanus_combined_masked <- mask(proj_semibalanus_combined, expanded_rock)
+plot(proj_semibalanus_combined_masked)
+```
+
+```{r}
+#| label: plots-current-protection-semibal-combined
+
+# Choose the first layer
+r_layer <- proj_semibalanus_combined_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE)
+colnames(r_df) <- c("x", "y", "suitability")
+
+# plot
+semibalanus_combined_current_plot_TSS <- ggplot() +
+  geom_sf(
+    data = uk,
+    fill = "grey98",       # land
+    color = "grey80",
+    size = 0.7
+  ) +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
+  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  labs(fill = NULL) + 
+  coord_sf(
+    xlim = c(-11, 2.6),
+    ylim = c(49.35, 60.9),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plotting height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # put the colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+semibalanus_combined_current_plot_TSS
 ```
 
 #### Projection 3 (Chthamalus - visual)
@@ -2280,7 +2403,58 @@ myBiomodEMProj_chthamalus_visual <- BIOMOD_EnsembleForecasting(
 )
 
 myBiomodEMProj_chthamalus_visual
-plot(myBiomodEMProj_chthamalus_visual)
+
+# visualise
+proj_chthamalus_visual <- get_predictions(myBiomodEMProj_chthamalus_visual) # returns a rasterLayer
+plot(proj_chthamalus_visual)
+
+# after rocky mask
+proj_chthamalus_visual_masked <- mask(proj_chthamalus_visual, expanded_rock)
+plot(proj_chthamalus_visual_masked)
+```
+
+```{r}
+#| label: plots-current-protection-chthamalus-visual
+
+# Choose the first layer
+r_layer <- proj_chthamalus_visual_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE)
+colnames(r_df) <- c("x", "y", "suitability")
+
+# plot
+chthamalus_visual_current_plot_TSS <- ggplot() +
+  geom_sf(
+    data = uk,
+    fill = "grey98",       # land
+    color = "grey80",
+    size = 0.7
+  ) +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
+  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  labs(fill = NULL) + 
+  coord_sf(
+    xlim = c(-11, 2.6),
+    ylim = c(49.35, 60.9),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plotting height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show the colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+chthamalus_visual_current_plot_TSS
 ```
 
 #### Projection 4 (Chthamalus - combined)
@@ -2302,7 +2476,78 @@ myBiomodEMProj_chthamalus_combined <- BIOMOD_EnsembleForecasting(
 )
 
 myBiomodEMProj_chthamalus_combined
-plot(myBiomodEMProj_chthamalus_combined)
+
+# visualise
+proj_chthamalus_combined <- get_predictions(myBiomodEMProj_chthamalus_combined) # returns a rasterLayer
+plot(proj_chthamalus_combined)
+
+# after rocky mask
+proj_chthamalus_combined_masked <- mask(proj_chthamalus_combined, expanded_rock)
+plot(proj_chthamalus_combined_masked)
+```
+
+```{r}
+#| label: plots-current-protection-chthamalus-combined
+
+# Choose the first layer
+r_layer <- proj_chthamalus_combined_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE)
+colnames(r_df) <- c("x", "y", "suitability")
+
+#plot
+chthamalus_combined_current_plot_TSS <- ggplot() +
+  geom_sf(
+    data = uk,
+    fill = "grey98",       # land
+    color = "grey80",
+    size = 0.7
+  ) +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
+  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  labs(fill = NULL) +   # 🚨 remove legend title
+  coord_sf(
+    xlim = c(-11, 2.6),
+    ylim = c(49.35, 60.9),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plot height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+chthamalus_combined_current_plot_TSS
+```
+
+#### Joint plot
+
+Let's plot all our current projections together into one plot.
+
+```{r}
+#| label: current-protections-plot
+
+current_projections_plot <- cowplot::plot_grid(
+  semibalanus_visual_current_plot_TSS,
+  semibalanus_combined_current_plot_TSS,
+  chthamalus_visual_current_plot_TSS,
+  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("a) SB-Citizen", "b) SB-Combined", "c) CM-Citizen", "d) CM-Combined"), align = "hv"
+)
+
+current_projections_plot
+
+# Save the plot
+ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 8, height = 9, dpi = 300)
 ```
 
 ### Forecasting change
@@ -2431,8 +2676,8 @@ myBiomodEMProjFuture_chthamalus_visual<- BIOMOD_EnsembleForecasting(
   proj.name = 'FutureEM.chthamalus.visual',
   new.env = enviro_vars_future,
   models.chosen = c(
-    'chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
-    "chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+    'Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
   ),
   metric.binary = 'all',
   metric.filter = 'all'
@@ -2487,8 +2732,8 @@ myBiomodEMProjFuture_chthamalus_combined<- BIOMOD_EnsembleForecasting(
   proj.name = 'FutureEM.chthamalus.combined',
   new.env = enviro_vars_future,
   models.chosen = c(
-    'chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
-    "chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+    'Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
   ),
   metric.binary = 'all',
   metric.filter = 'all'
