@@ -126,6 +126,43 @@ get_nearest_coastline <- function(environment_stack, occurance_data, condition) 
 }
 ```
 
+```{r}
+#| label: function-snap-to-valid-cell
+
+snap_to_nearest_valid <- function(environment_stack, occurance_data) {
+  
+  # Select lon/lat columns using dplyr
+  coords <- occurance_data %>% select(c(lon, lat))
+  
+  # Convert to SpatialPoints for raster extraction
+  pts <- SpatialPoints(coords, proj4string = crs(environment_stack))
+  
+  # Extract raster values at occurrence points
+  vals <- raster::extract(environment_stack, pts)
+  
+  # Identify points on any NA across layers
+  na_points <- apply(vals, 1, function(x) any(is.na(x)))
+  
+  # Identify valid cells (no NAs in any layer)
+  valid_cells <- Which(
+    !is.na(environment_stack[[1]]) & !is.na(environment_stack[[2]]) & !is.na(environment_stack[[3]]),
+    cells = TRUE
+  )
+  valid_xy <- xyFromCell(environment_stack, valid_cells)
+  
+  # Initialize corrected coordinates
+  corrected_coords <- coords
+  
+  # Snap only points on NA cells
+  if(any(na_points)) {
+    nn <- FNN::get.knnx(valid_xy, coords[na_points, , drop = FALSE], k = 1)
+    corrected_coords[na_points, ] <- valid_xy[nn$nn.index, ]
+  }
+  
+  return(corrected_coords)
+}
+```
+
 ## Occurrence data
 
 ### Import paired eDNA and MarClim occurrences
@@ -873,6 +910,8 @@ We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODne
 
 ```{r}
 #| label: import-from-emodnet_wfs
+#| eval: false
+#| include: false
 
 # service information 
 #services <- emodnet_wfs()
@@ -927,43 +966,45 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 
 ```{r}
 #| label: read-in-UKASH-mosaic
+#| eval: false
+#| include: false
 
 # Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
-gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
+#gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
 
 # List available layers
-st_layers(gdb_path)
+#st_layers(gdb_path)
 
 # read in
-ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
+#ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
 
 # explore
-print(ukash)
+#print(ukash)
 
 # filter for rocky only
-rock_ukash <- ukash %>%
-  filter(str_detect(str_to_lower(OrigName), "rock"))
+#rock_ukash <- ukash %>%
+  #filter(str_detect(str_to_lower(OrigName), "rock"))
 
 # make a raster and match format to the other environmental variables
-rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
+#rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
 
 # read in
-rocky_substrate_mosaic
+#rocky_substrate_mosaic
 
 # plot
-rock_ukash_plot <- ggplot(rock_ukash) +
-  geom_sf(aes(fill = OrigName)) +
-  scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
-  coord_sf(crs = 4326) +
-  theme_minimal() +
-  labs(
-    title = "UKASH Mosaic Localised Rock Habitat Map",
-    x = "Longitude", y = "Latitude"
-  ) + theme(legend.position = "none")
+#rock_ukash_plot <- ggplot(rock_ukash) +
+  #geom_sf(aes(fill = OrigName)) +
+  #scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  #coord_sf(crs = 4326) +
+  #theme_minimal() +
+  #labs(
+    #title = "UKASH Mosaic Localised Rock Habitat Map",
+    #x = "Longitude", y = "Latitude"
+  #) + theme(legend.position = "none")
 
-rock_ukash_plot
+#rock_ukash_plot
 
-ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
+#ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
 To get a better coverage, let's import rocky habitat information from JNCC Marine Recorder Public UK snapshot.
@@ -972,137 +1013,143 @@ Two Microsoft access databases (primary and secondary) are available at <https:/
 
 ```{r}
 #| label: read-in-JNCC-snapshot-data
+#| eval: false
+#| include: false
 
 # lists the drivers already installed for excel, access ect...
-unique(odbc::odbcListDrivers()[[1]])
+#unique(odbc::odbcListDrivers()[[1]])
 
 # set database locations
-primary_dbname <- "Data/Environmental_data/JNCC/SnapshotDatav52_PUBLIC_20220124.mdb"
-secondary_dbname <- "Data/Environmental_data/JNCC//SnapshotDatav52_PUBLIC_20220124_secondary.mdb"
+#primary_dbname <- "Data/Environmental_data/JNCC/SnapshotDatav52_PUBLIC_20220124.mdb"
+#secondary_dbname <- "Data/Environmental_data/JNCC//SnapshotDatav52_PUBLIC_20220124_secondary.mdb"
 
 # Establish connections between R and Access
-RODBC::odbcCloseAll() # clear any existing
-primary_con <- RODBC::odbcConnectAccess2007(primary_dbname)
-secondary_con <- RODBC::odbcConnectAccess2007(secondary_dbname)
+#RODBC::odbcCloseAll() # clear any existing
+#primary_con <- RODBC::odbcConnectAccess2007(primary_dbname)
+#secondary_con <- RODBC::odbcConnectAccess2007(secondary_dbname)
 
-RODBC::sqlTables(primary_con)
-RODBC::sqlTables(secondary_con)
+#RODBC::sqlTables(primary_con)
+#RODBC::sqlTables(secondary_con)
 
 # Fetch the data from the SampleBiotopeAll table
-locations <- RODBC::sqlFetch(primary_con, "Location", rownames = T)
-SampleBiotopeAll <- RODBC::sqlFetch(secondary_con, "SampleBiotopeAll", rownames = T)
+#locations <- RODBC::sqlFetch(primary_con, "Location", rownames = T)
+#SampleBiotopeAll <- RODBC::sqlFetch(secondary_con, "SampleBiotopeAll", rownames = T)
 
 # Pull all the Biotope occurrence keys littoral habitats
-Biotope_littoral <- SampleBiotopeAll %>%
-  dplyr::filter(grepl("LR", BiotopeCode))  # matches any LR entries (includes eulittoral)
+#Biotope_littoral <- SampleBiotopeAll %>%
+  #dplyr::filter(grepl("LR", BiotopeCode))  # matches any LR entries (includes eulittoral)
 
 # join
-biotype_location <- left_join(Biotope_littoral, locations, by = "ObjectId")
-biotype_location_reduced <- biotype_location %>% select(ObjectId, BiotopeCode, Lat, Long, LatWGS84, LongWGS84, Qualifier, CoordinateSystem) %>% na.omit()
+#biotype_location <- left_join(Biotope_littoral, locations, by = "ObjectId")
+#biotype_location_reduced <- biotype_location %>% select(ObjectId, BiotopeCode, Lat, Long, LatWGS84, LongWGS84, Qualifier, CoordinateSystem) %>% na.omit()
 
 # remove uncertain 
-biotype_location_reduced_certain <- biotype_location_reduced %>%
-  dplyr::filter(!grepl("Uncertain", Qualifier))
+#biotype_location_reduced_certain <- biotype_location_reduced %>%
+  #dplyr::filter(!grepl("Uncertain", Qualifier))
 
 #visualise - looks like a some points are incorrect
-rocky_map <- ggplot() +
-  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+#rocky_map <- ggplot() +
+  #geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
   
   # Add all points with color mapped to 'source'
-  geom_jitter(data = biotype_location_reduced, 
-              aes(x = LongWGS84, y = LatWGS84, colour = Qualifier), 
-              size = 0.8, width = 0.025, height = 0.025) +
-  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
-  theme_minimal() +
-  labs(x = "Longitude", y = "Latitude") #+
+  #geom_jitter(data = biotype_location_reduced, 
+              #aes(x = LongWGS84, y = LatWGS84, colour = Qualifier), 
+              #size = 0.8, width = 0.025, height = 0.025) +
+  #coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  #theme_minimal() +
+  #labs(x = "Longitude", y = "Latitude") #+
   #theme(legend.position = "none")
 
-rocky_map
+#rocky_map
 
-ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
+#ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
 ```
 
 ```{r}
 #| label: remove-offshore-points-rocky
+#| eval: false
+#| include: false
 
 # Convert raster coastline (value=1 for land) to polygons
-coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
+#coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
 
 # Keep only the polygons where coastline == 1
-coast_poly <- coast_poly[coast_poly$coastline == 1, ]
+#coast_poly <- coast_poly[coast_poly$coastline == 1, ]
 
 # Buffer (in degrees — ~0.01° ≈ 1.1 km at equator)
-buffer_dist <- 0.03  # adjust based on desired intertidal width
-coast_poly_buffered <- terra::buffer(coast_poly, width = buffer_dist)
+#buffer_dist <- 0.03  # adjust based on desired intertidal width
+#coast_poly_buffered <- terra::buffer(coast_poly, width = buffer_dist)
 
 # Make a SpatVector from Lat/Long WGS84
-biotype_vect <- vect(
-  biotype_location_reduced,
-  geom = c("LongWGS84", "LatWGS84"), 
-  crs = "OGC:CRS84"
-)
+#biotype_vect <- vect(
+  #biotype_location_reduced,
+  #geom = c("LongWGS84", "LatWGS84"), 
+  #crs = "OGC:CRS84"
+#)
 
 # Intersect points with buffered polygon
-biotype_onshore_vect <- terra::intersect(biotype_vect, coast_poly_buffered)
+#biotype_onshore_vect <- terra::intersect(biotype_vect, coast_poly_buffered)
 
 # Convert points and polygon to sf
-biotype_sf <- st_as_sf(biotype_onshore_vect)
-coast_sf   <- st_as_sf(coast_poly_buffered)
+#biotype_sf <- st_as_sf(biotype_onshore_vect)
+#coast_sf   <- st_as_sf(coast_poly_buffered)
 
 # Plot
-jncc_snapshot_littorial_tidy_map <- ggplot() +
-  geom_sf(data = coast_sf, fill = "lightgray", color = "lightblue") +
-  geom_sf(data = biotype_sf, size = 1, color = "orange") +
-  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) + # adjust to your study area
-  theme_minimal() +
-  theme(legend.position = "none")
+#jncc_snapshot_littorial_tidy_map <- ggplot() +
+  #geom_sf(data = coast_sf, fill = "lightgray", color = "lightblue") +
+  #geom_sf(data = biotype_sf, size = 1, color = "orange") +
+  #coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) + # adjust to your study area
+  #theme_minimal() +
+  #theme(legend.position = "none")
 
-jncc_snapshot_littorial_tidy_map
+#jncc_snapshot_littorial_tidy_map
 
-ggsave(jncc_snapshot_littorial_tidy_map, filename = "Figures/jncc_snapshot_littorial_tidy_map.jpeg", width = 5, height= 8)
+#ggsave(jncc_snapshot_littorial_tidy_map, filename = "Figures/jncc_snapshot_littorial_tidy_map.jpeg", width = 5, height= 8)
 ```
 
 Let's combined the two JNCC sources so we have the best cover for our environmental rocky variable.
 
 ```{r}
 #| label: join-JNCC-rock-sources
+#| eval: false
+#| include: false
 
 # Ensure CRS matches
-biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
+#biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
 
 # Keep biotype_sf for later use (this is your vector dataset)
 
 # Convert sf to SpatVector for rasterising
-biotype_vect <- vect(biotype_sf)
+#biotype_vect <- vect(biotype_sf)
 
 # Create a template raster
-rocky_template <- rast(rock_ukash_rast)
+#rocky_template <- rast(rock_ukash_rast)
 
 # Rasterise points
-rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = 0)
+#rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = 0)
 
 # Combine with existing rock raster
-combined_rock_rast <- cover(rock_ukash_rast, rocky_rast)
+#combined_rock_rast <- cover(rock_ukash_rast, rocky_rast)
 
 # Plot
-plot(combined_rock_rast, main = "Rocky substrate (binary)")
+#plot(combined_rock_rast, main = "Rocky substrate (binary)")
 
 # Convert combined raster back to sf polygons if you want an sf version
-combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
+#combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
 
 # keep 1 as 1, set everything else to NA
-rock01 <- ifel(combined_rock_rast == 1, 1, NA)
+#rock01 <- ifel(combined_rock_rast == 1, 1, NA)
 
 # polygonize only the 1s
-pol1 <- as.polygons(rock01, dissolve = TRUE, na.rm = TRUE)
-combined_rock_sf <- st_as_sf(pol1)
+#pol1 <- as.polygons(rock01, dissolve = TRUE, na.rm = TRUE)
+#combined_rock_sf <- st_as_sf(pol1)
 
 # optional cleanup
-combined_rock_sf <- sf::st_make_valid(combined_rock_sf)
-combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
+#combined_rock_sf <- sf::st_make_valid(combined_rock_sf)
+#combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
 
 # make a raster and match format to the other environmental variables
-rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present)
+#rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present)
 ```
 
 ### Wave fetch (Burrows)
@@ -1147,8 +1194,11 @@ fetch_sf <- st_as_sf(fetch_sf)
 #Check polygon CRS; if missing, assign the original projected CRS
 st_crs(fetch_sf) <- 27700  # Example: British National Grid, adjust if different
 
+# Widen buffer by 1000 m (example)
+wf_buffered <- st_buffer(fetch_sf, dist = 1000)
+
 #Reproject polygons to match raster CRS
-fetch_sf_proj <- st_transform(fetch_sf, crs(ocean_temp_present))
+fetch_sf_proj <- st_transform(wf_buffered, crs(ocean_temp_present))
 
 # Rasterize
 fetch_raster <- rasterize(vect(fetch_sf_proj), ocean_temp_present, field = "wave_fetch", background = NA)
@@ -1164,7 +1214,7 @@ enviro_vars_current <- stack(c(
   ocean_temp_present["thetao_mean_2"],
   #air_temp_present,
   ph_present["ph_mean_2"],
-  terrain,
+  #terrain,
   #rock_rast_combined,
   fetch_raster
 ))
@@ -1174,9 +1224,10 @@ names(enviro_vars_current) <- c(
   #"air_temp_2000",
   #"air_temp_2020",
   "ph",
-  "coastline_binary",
+  #"coastline_binary",
   #"rocky_substrate",
-  "wave_fetch")
+  "wave_fetch"
+  )
 
 names(enviro_vars_current)
 plot(enviro_vars_current) # plots each decade
@@ -1185,7 +1236,7 @@ enviro_vars_future <- stack(c(
   ocean_temp_projected["thetao_mean_8"],
   #air_temp_projected,
   ph_projected["ph_mean_8"],
-  terrain,
+  #terrain,
   #rock_rast_combined,
   fetch_raster
 ))
@@ -1195,7 +1246,7 @@ names(enviro_vars_future) <- c(
   #"air_temp_2000",
   #"air_temp_2020",
   "ph",
-  "coastline_binary",
+  #"coastline_binary",
   #"rocky_substrate",
   "wave_fetch" # we need the future 
 )
@@ -1250,7 +1301,7 @@ points(chthamalus_montagui_obs_both_methods,
 
 ### Fixed unmatched occurrence points to environmental data
 
-We use the `extract` function from the `raster` package.
+We use the `extract` function from the `raster` package to check where they overlap.
 
 ```{r}
 #| label: extract-values
@@ -1271,11 +1322,10 @@ Let's do Semibalanus first.
 ```{r}
 #| label: correct_marclim_seminbalanus
 
-# call function we created eariler to correct points
-semibalanus_corrected_marclim <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+semibalanus_corrected_marclim <- snap_to_nearest_valid(
   enviro_vars_current,
-  semibalanus_marclim_broad,
-  terrain)
+  semibalanus_marclim_broad)
 
 # check
 envir_terra <- rast(enviro_vars_current)
@@ -1288,15 +1338,13 @@ presvals_semibalanus_corrected_marclim <- presvals_semibalanus_corrected_marclim
 head(semibalanus_corrected_marclim)
 
 # for the PA version
-
-# call function we created eariler to correct points
 marclim_broad_sp_PA_semibalanus <- marclim_broad_sp_PA %>% select(-c("Chthamalus.montagui"))
 
-semibalanus_corrected_marclim_PA <- get_nearest_coastline(
+semibalanus_corrected_marclim_PA <- snap_to_nearest_valid(
   enviro_vars_current,
-  marclim_broad_sp_PA_semibalanus,
-  terrain)
+  marclim_broad_sp_PA_semibalanus)
 
+# snap the valid environmental cells from function created earlier
 presvals_semibalanus_corrected_marclim_PA <- extract(envir_terra, semibalanus_corrected_marclim_PA) # this looks better
 
 # remove the ID variable
@@ -1304,16 +1352,18 @@ presvals_semibalanus_corrected_marclim_PA <- presvals_semibalanus_corrected_marc
 
 # check the new data
 head(semibalanus_corrected_marclim_PA)
+
+#add PA back in
+semibalanus_corrected_marclim_PA$Semibalanus.balanoides = marclim_broad_sp_PA_semibalanus$Semibalanus.balanoides
 ```
 
 ```{r}
 #| label: correct_gbif_seminbalanus
 
-# call function we created eariler to correct points
-semibalanus_corrected_gbif <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+semibalanus_corrected_gbif <- snap_to_nearest_valid(
   enviro_vars_current,
-  semibalanus_GBIF_clean_reduced,
-  terrain)
+  semibalanus_GBIF_clean_reduced)
 
 # check
 presvals_semibalanus_corrected_gbif <- extract(envir_terra, semibalanus_corrected_gbif[, c("lon", "lat")]) # this looks better
@@ -1327,17 +1377,16 @@ head(semibalanus_corrected_gbif)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_semibalanus_corrected_gbif, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 2 NA points
+table(na_points) #no NAs
 ```
 
 ```{r}
 #| label: correct_combined_seminbalanus
 
-# call function we created eariler to correct points
-semibalanus_corrected_combined <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+semibalanus_corrected_combined <- snap_to_nearest_valid(
   enviro_vars_current,
-  semibalanus_GBIF_eDNA,
-  terrain)
+  semibalanus_GBIF_eDNA)
 
 # check
 presvals_semibalanus_corrected_combined <- extract(envir_terra, semibalanus_corrected_combined[, c("lon", "lat")]) # this looks better
@@ -1351,7 +1400,7 @@ head(semibalanus_corrected_combined)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_semibalanus_corrected_combined, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 2 NA points
+table(na_points) #no NAs
 ```
 
 Now let's do Chthamalus.
@@ -1359,11 +1408,10 @@ Now let's do Chthamalus.
 ```{r}
 #| label: correct_marclim_chthamalus
 
-# call function we created eariler to correct points
-chthamalus_corrected_marclim <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+chthamalus_corrected_marclim <- snap_to_nearest_valid(
   enviro_vars_current,
-  chthamalus_marclim_broad,
-  terrain)
+  chthamalus_marclim_broad)
 
 # check
 envir_terra <- rast(enviro_vars_current)
@@ -1380,10 +1428,10 @@ head(chthamalus_corrected_marclim)
 # call function we created eariler to correct points
 marclim_broad_sp_PA_chthamalus <- marclim_broad_sp_PA %>% select(-c("Semibalanus.balanoides"))
 
-chthamalus_corrected_marclim_PA <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+chthamalus_corrected_marclim_PA <- snap_to_nearest_valid(
   enviro_vars_current,
-  marclim_broad_sp_PA_chthamalus,
-  terrain)
+  marclim_broad_sp_PA_chthamalus)
 
 presvals_chthamalus_corrected_marclim_PA <- extract(envir_terra, chthamalus_corrected_marclim_PA) # this looks better
 
@@ -1392,16 +1440,18 @@ presvals_chthamalus_corrected_marclim_PA <- presvals_chthamalus_corrected_marcli
 
 # check the new data
 head(chthamalus_corrected_marclim_PA)
+
+#add PA back in
+chthamalus_corrected_marclim_PA$Chthamalus.montagui = marclim_broad_sp_PA_chthamalus$Chthamalus.montagui
 ```
 
 ```{r}
 #| label: correct_gbif_chthamalus
 
-# call function we created eariler to correct points
-chthamalus_corrected_gbif <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+chthamalus_corrected_gbif <- snap_to_nearest_valid(
   enviro_vars_current,
-  chthamalus_GBIF_clean_reduced,
-  terrain)
+  chthamalus_GBIF_clean_reduced)
 
 # check
 presvals_chthamalus_corrected_gbif <- extract(envir_terra, chthamalus_corrected_gbif[, c("lon", "lat")]) # this looks better
@@ -1415,17 +1465,16 @@ head(chthamalus_corrected_gbif)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_chthamalus_corrected_gbif, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 3 NA points
+table(na_points) #no Nas
 ```
 
 ```{r}
 #| label: correct_combined_chthamalus
 
-# call function we created eariler to correct points
-chthamalus_corrected_combined <- get_nearest_coastline(
+# snap the valid environmental cells from function created earlier
+chthamalus_corrected_combined <- snap_to_nearest_valid(
   enviro_vars_current,
-  chthamalus_GBIF_eDNA,
-  terrain)
+  chthamalus_GBIF_eDNA)
 
 # check
 presvals_chthamalus_corrected_combined <- extract(envir_terra, chthamalus_corrected_combined[, c("lon", "lat")]) # this looks better
@@ -1439,10 +1488,10 @@ head(chthamalus_corrected_combined)
 # Count how many presence points have all variables NA (or any NA)
 na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is.na(x)))
 
-table(na_points) #only 3 NA points
+table(na_points) #no NAs
 ```
 
-### Finalise environmental stacks after tidying
+### Finalize environmental stacks after tidying
 
 Let's now remove the coastline variables from the model.
 
@@ -1498,7 +1547,7 @@ We are going to build our models and forecasts using the `biomod2` package. We w
 
 ### Data formatting
 
-For our models, the GBIF and eDNA data will be used to build the individual models, being split for instance 10 times into 70/30 percentages to cross-validate them (which is defined in the next section).
+For our models, the GBIF and eDNA data will be used to build the individual models, being split for example 10 times into 70/30 percentages to cross-validate them (which is defined in the next section).
 
 The MarClim data will be used to evaluate all models (individual or ensemble) - this is defined when formatting the data in this section.
 
@@ -1508,20 +1557,18 @@ The MarClim data will be used to evaluate all models (individual or ensemble) - 
 #| label: semibalanus-visual-model-data-checks
 
 # pa as df and tidy
+# marclim
 semibalanus_corrected_marclim_PA_df <- as.data.frame(semibalanus_corrected_marclim_PA)
+
+# occurences
 semibalanus_corrected_gbif_df <- as.data.frame(semibalanus_corrected_gbif)
 semibalanus_corrected_gbif_df$Semibalanus.balanoides <- 1 #add p for gbif
-semibalanus_corrected_gbif_df <- semibalanus_corrected_gbif_df %>% select(-c("species"))
 
-# Fix issues with non-matching coordinates
 # Extract env values
 env_vals <- extract(envir_terra, semibalanus_corrected_gbif)
-df <- as.data.frame(geom(semibalanus_corrected_gbif))
-df <- df %>% select(c(x, y))
-colnames(df) <- c("lon", "lat")
 
 # Bind back to coordinates
-pts_with_vals <- cbind(df, env_vals)
+pts_with_vals <- cbind(semibalanus_corrected_gbif_df, env_vals)
 
 # Remove NAs
 pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
@@ -1545,12 +1592,13 @@ myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
   PA.nb.absences = 3 * nrow(pts_clean),
   # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides,
+  eval.resp.var = semibalanus_corrected_marclim_PA_df$Semibalanus.balanoides,
   # Evaluation responses (0/1)
-  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")],
+  eval.resp.xy = semibalanus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
-  eval.expl.var = presvals_semibalanus_corrected_marclim_PA
-  #filter.raster = TRUE #autofilter
+  eval.expl.var = presvals_semibalanus_corrected_marclim_PA,
+  #filter.raster = TRUE #autofilter,
+  na.rm = FALSE
 )
 
 myBiomodData_semibalanus_visual
@@ -1567,20 +1615,15 @@ dev.off()
 ```{r}
 #| label: semibalanus-combined-model-data-checks
 
-# fomat
+# occurences
 semibalanus_corrected_combined_df <- as.data.frame(semibalanus_corrected_combined)
 semibalanus_corrected_combined_df$Semibalanus.balanoides <- 1 #add p for gbif
-semibalanus_corrected_combined_df <- semibalanus_corrected_combined_df %>% select(-c("species"))
 
-# Fix issues with non-matching coordinates
 # Extract env values
 env_vals <- extract(envir_terra, semibalanus_corrected_combined)
-df <- as.data.frame(geom(semibalanus_corrected_combined))
-df <- df %>% select(c(x, y))
-colnames(df) <- c("lon", "lat")
 
 # Bind back to coordinates
-pts_with_vals <- cbind(df, env_vals)
+pts_with_vals <- cbind(semibalanus_corrected_combined_df, env_vals)
 
 # Remove NAs
 pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
@@ -1604,9 +1647,9 @@ myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
   PA.nb.absences = 3 * nrow(pts_clean),
   # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides,
+  eval.resp.var = semibalanus_corrected_marclim_PA_df$Semibalanus.balanoides,
   # Evaluation responses (0/1)
-  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")],
+  eval.resp.xy = semibalanus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
   eval.expl.var = presvals_semibalanus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
@@ -1627,20 +1670,18 @@ dev.off()
 #| label: chthamalus-visual-model-data-checks
 
 # pa as df and tidy
+# marclim
 chthamalus_corrected_marclim_PA_df <- as.data.frame(chthamalus_corrected_marclim_PA)
-chthamalus_corrected_gbif_df <- as.data.frame(chthamalus_corrected_gbif)
-chthamalus_corrected_gbif_df$chthamalus.balanoides <- 1 #add p for gbif
-chthamalus_corrected_gbif_df <- chthamalus_corrected_gbif_df %>% select(-c("species"))
 
-# Fix issues with non-matching coordinates
+# occurences
+chthamalus_corrected_gbif_df <- as.data.frame(chthamalus_corrected_gbif)
+chthamalus_corrected_gbif_df$Semibalanus.balanoides <- 1 #add p for gbif
+
 # Extract env values
 env_vals <- extract(envir_terra, chthamalus_corrected_gbif)
-df <- as.data.frame(geom(chthamalus_corrected_gbif))
-df <- df %>% select(c(x, y))
-colnames(df) <- c("lon", "lat")
 
 # Bind back to coordinates
-pts_with_vals <- cbind(df, env_vals)
+pts_with_vals <- cbind(chthamalus_corrected_gbif_df, env_vals)
 
 # Remove NAs
 pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
@@ -1662,9 +1703,9 @@ myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
   PA.nb.absences = 3 * nrow(pts_clean),
   # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui,
+  eval.resp.var = chthamalus_corrected_marclim_PA_df$Chthamalus.montagui,
   # Evaluation responses (0/1)
-  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")],
+  eval.resp.xy = chthamalus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
   eval.expl.var = presvals_chthamalus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
@@ -1684,20 +1725,15 @@ dev.off()
 ```{r}
 #| label: chthamalus-combined-model-data-checks
 
-# fomat
+# occurences
 chthamalus_corrected_combined_df <- as.data.frame(chthamalus_corrected_combined)
-chthamalus_corrected_combined_df$chthamalus.balanoides <- 1 #add p for gbif
-chthamalus_corrected_combined_df <- chthamalus_corrected_combined_df %>% select(-c("species"))
+chthamalus_corrected_combined_df$Semibalanus.balanoides <- 1 #add p for gbif
 
-# Fix issues with non-matching coordinates
 # Extract env values
 env_vals <- extract(envir_terra, chthamalus_corrected_combined)
-df <- as.data.frame(geom(chthamalus_corrected_combined))
-df <- df %>% select(c(x, y))
-colnames(df) <- c("lon", "lat")
 
 # Bind back to coordinates
-pts_with_vals <- cbind(df, env_vals)
+pts_with_vals <- cbind(chthamalus_corrected_combined_df, env_vals)
 
 # Remove NAs
 pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
@@ -1719,9 +1755,9 @@ myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
   PA.nb.absences = 3 * nrow(pts_clean),
   # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui,
+  eval.resp.var = chthamalus_corrected_marclim_PA_df$Chthamalus.montagui,
   # Evaluation responses (0/1)
-  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")],
+  eval.resp.xy = chthamalus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
   eval.expl.var = presvals_chthamalus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
@@ -2186,7 +2222,7 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
 #| echo: true
 #| results: hide
 
-#just using weighted mean models from now on
+#just using mean models from now on
 
 myBiomodEMProj_semibalanus_visual <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_semibalanus_visual,
