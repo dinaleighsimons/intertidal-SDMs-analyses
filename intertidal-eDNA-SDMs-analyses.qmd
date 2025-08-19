@@ -59,7 +59,9 @@ packages <- c("devtools",
               "mda",
               "earth",
               "maxnet",
-              "randomForest") 
+              "randomForest",
+              "RODBC",
+              "odbc") 
 
 # Install any missing packages along with their dependencies
 new.packages <- packages[!(packages %in% installed.packages()[, "Package"])]
@@ -738,7 +740,7 @@ uk_extent <- extent(-11, 2, 49.5, 61)
 cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
 ```
 
-### Temp, pH, terrain (Bio-ORCLE)
+### Temp, pH, coastline (Bio-ORCLE)
 
 Bio-ORACLE is a comprehensive data set providing a wide range of marine environmental variables tailored for ecological and biogeographical analysis. These variables include surface and benthic values for parameters such as temperature, salinity, nutrients, oxygen, pH, and more, derived from satellite and modeled oceanographic data.
 
@@ -927,49 +929,232 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 #| label: read-in-UKASH-mosaic
 
 # Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
-#gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
+gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
 
 # List available layers
-#st_layers(gdb_path)
+st_layers(gdb_path)
 
 # read in
-#ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
+ukash <- st_read(gdb_path, layer = "UKASH_MosaicLocalisedMaps_v2025_1")
 
 # explore
-##print(ukash)
+print(ukash)
 
 # filter for rocky only
-#rock_ukash <- ukash %>%
-  #filter(str_detect(str_to_lower(OrigName), "rock"))
+rock_ukash <- ukash %>%
+  filter(str_detect(str_to_lower(OrigName), "rock"))
 
 # make a raster and match format to the other environmental variables
-#rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
+rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
+
+# read in
+rocky_substrate_mosaic
 
 # plot
-#rock_ukash_plot <- ggplot(rock_ukash) +
-  #geom_sf(aes(fill = OrigName)) +
-  #scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
-  #coord_sf(crs = 4326) +
-  ##theme_minimal() +
-  #labs(
-    #title = "UKASH Mosaic Localised Rock Habitat Map",
-    #x = "Longitude", y = "Latitude"
-  #) + theme(legend.position = "none")
+rock_ukash_plot <- ggplot(rock_ukash) +
+  geom_sf(aes(fill = OrigName)) +
+  scale_fill_viridis_d(option = "plasma", name = "Substrate Type") +
+  coord_sf(crs = 4326) +
+  theme_minimal() +
+  labs(
+    title = "UKASH Mosaic Localised Rock Habitat Map",
+    x = "Longitude", y = "Latitude"
+  ) + theme(legend.position = "none")
 
-#rock_ukash_plot
+rock_ukash_plot
 
-#ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
+ggsave(rock_ukash_plot, filename = "Figures/UKASH_Mosaic_Localised_Rock.jpeg")
 ```
 
 To get a better coverage, let's import rocky habitat information from JNCC Marine Recorder Public UK snapshot.
 
+Two Microsoft access databases (primary and secondary) are available at <https://hub.jncc.gov.uk/assets/b9934e31-39b6-41f9-9364-d1e93db68307>. The rocky habitat we are interested in are defined here - <https://mhc.jncc.gov.uk/biotopes/jnccmncr00000003>. Primary database contains locations, secondary contains biotypes.
+
 ```{r}
 #| label: read-in-JNCC-snapshot-data
 
+# lists the drivers already installed for excel, access ect...
+unique(odbc::odbcListDrivers()[[1]])
 
+# set database locations
+primary_dbname <- "Data/Environmental_data/JNCC/SnapshotDatav52_PUBLIC_20220124.mdb"
+secondary_dbname <- "Data/Environmental_data/JNCC//SnapshotDatav52_PUBLIC_20220124_secondary.mdb"
+
+# Establish connections between R and Access
+RODBC::odbcCloseAll() # clear any existing
+primary_con <- RODBC::odbcConnectAccess2007(primary_dbname)
+secondary_con <- RODBC::odbcConnectAccess2007(secondary_dbname)
+
+RODBC::sqlTables(primary_con)
+RODBC::sqlTables(secondary_con)
+
+# Fetch the data from the SampleBiotopeAll table
+locations <- RODBC::sqlFetch(primary_con, "Location", rownames = T)
+SampleBiotopeAll <- RODBC::sqlFetch(secondary_con, "SampleBiotopeAll", rownames = T)
+
+# Pull all the Biotope occurrence keys littoral habitats
+Biotope_littoral <- SampleBiotopeAll %>%
+  dplyr::filter(grepl("LR", BiotopeCode))  # matches any LR entries (includes eulittoral)
+
+# join
+biotype_location <- left_join(Biotope_littoral, locations, by = "ObjectId")
+biotype_location_reduced <- biotype_location %>% select(ObjectId, BiotopeCode, Lat, Long, LatWGS84, LongWGS84, Qualifier, CoordinateSystem) %>% na.omit()
+
+# remove uncertain 
+biotype_location_reduced_certain <- biotype_location_reduced %>%
+  dplyr::filter(!grepl("Uncertain", Qualifier))
+
+#visualise - looks like a some points are incorrect
+rocky_map <- ggplot() +
+  geom_sf(data = wrld, fill = "lightyellow", color = "lightgray") +
+  
+  # Add all points with color mapped to 'source'
+  geom_jitter(data = biotype_location_reduced, 
+              aes(x = LongWGS84, y = LatWGS84, colour = Qualifier), 
+              size = 0.8, width = 0.025, height = 0.025) +
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  theme_minimal() +
+  labs(x = "Longitude", y = "Latitude") #+
+  #theme(legend.position = "none")
+
+rocky_map
+
+ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
 ```
 
-### Create stacks
+```{r}
+#| label: remove-offshore-points-rocky
+
+# Convert raster coastline (value=1 for land) to polygons
+coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
+
+# Keep only the polygons where coastline == 1
+coast_poly <- coast_poly[coast_poly$coastline == 1, ]
+
+# Buffer (in degrees — ~0.01° ≈ 1.1 km at equator)
+buffer_dist <- 0.03  # adjust based on desired intertidal width
+coast_poly_buffered <- terra::buffer(coast_poly, width = buffer_dist)
+
+# Make a SpatVector from Lat/Long WGS84
+biotype_vect <- vect(
+  biotype_location_reduced,
+  geom = c("LongWGS84", "LatWGS84"), 
+  crs = "OGC:CRS84"
+)
+
+# Intersect points with buffered polygon
+biotype_onshore_vect <- terra::intersect(biotype_vect, coast_poly_buffered)
+
+# Convert points and polygon to sf
+biotype_sf <- st_as_sf(biotype_onshore_vect)
+coast_sf   <- st_as_sf(coast_poly_buffered)
+
+# Plot
+jncc_snapshot_littorial_tidy_map <- ggplot() +
+  geom_sf(data = coast_sf, fill = "lightgray", color = "lightblue") +
+  geom_sf(data = biotype_sf, size = 1, color = "orange") +
+  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) + # adjust to your study area
+  theme_minimal() +
+  theme(legend.position = "none")
+
+jncc_snapshot_littorial_tidy_map
+
+ggsave(jncc_snapshot_littorial_tidy_map, filename = "Figures/jncc_snapshot_littorial_tidy_map.jpeg", width = 5, height= 8)
+```
+
+Let's combined the two JNCC sources so we have the best cover for our environmental rocky variable.
+
+```{r}
+#| label: join-JNCC-rock-sources
+
+# Ensure CRS matches
+biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
+
+# Keep biotype_sf for later use (this is your vector dataset)
+
+# Convert sf to SpatVector for rasterising
+biotype_vect <- vect(biotype_sf)
+
+# Create a template raster
+rocky_template <- rast(rock_ukash_rast)
+
+# Rasterise points
+rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = 0)
+
+# Combine with existing rock raster
+combined_rock_rast <- cover(rock_ukash_rast, rocky_rast)
+
+# Plot
+plot(combined_rock_rast, main = "Rocky substrate (binary)")
+
+# Convert combined raster back to sf polygons if you want an sf version
+combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
+
+# keep 1 as 1, set everything else to NA
+rock01 <- ifel(combined_rock_rast == 1, 1, NA)
+
+# polygonize only the 1s
+pol1 <- as.polygons(rock01, dissolve = TRUE, na.rm = TRUE)
+combined_rock_sf <- st_as_sf(pol1)
+
+# optional cleanup
+combined_rock_sf <- sf::st_make_valid(combined_rock_sf)
+combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
+
+# make a raster and match format to the other environmental variables
+rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present)
+```
+
+### Wave fetch (Burrows)
+
+Wave fetch data is downloaded from <https://www.sams.ac.uk/people/researchers/burrows-professor-michael/>.
+
+```{r}
+#| label: wave-fetch
+
+# Import
+fetch <- rast("Data/Environmental_data/wave_fetch.asc")
+
+# Adjust 'fact' depending on raster size (larger = faster, less detail)
+fetch_small <- aggregate(fetch, fact = 10, fun = mean)
+
+#Set land cells (value = 1) and open ocean (value = 0) to NA
+fetch_small[fetch_small == 1] <- NA
+fetch_small[fetch_small == 0] <- NA
+
+# Convert downsampled raster to data frame
+fetch_df <- as.data.frame(fetch_small, xy = TRUE)
+
+# Check column names
+colnames(fetch_df)  # usually "x", "y", "layer"
+
+# Plot with ggplot
+fetch_plot <- ggplot(fetch_df, aes(x = x, y = y, fill = wave_fetch)) +
+  geom_raster() +
+  scale_fill_viridis_c() +
+  coord_equal() +
+  theme_minimal() +
+  labs(fill = "Wave Fetch",
+       title = "Wave Fetch Raster")
+
+fetch_plot
+
+# make same as environmental data
+# Convert combined raster back to sf polygons if you want an sf version
+fetch_sf <- as.polygons(fetch_small, dissolve = FALSE)  # dissolve=FALSE keeps each cell separate
+fetch_sf <- st_as_sf(fetch_sf)   
+
+#Check polygon CRS; if missing, assign the original projected CRS
+st_crs(fetch_sf) <- 27700  # Example: British National Grid, adjust if different
+
+#Reproject polygons to match raster CRS
+fetch_sf_proj <- st_transform(fetch_sf, crs(ocean_temp_present))
+
+# Rasterize
+fetch_raster <- rasterize(vect(fetch_sf_proj), ocean_temp_present, field = "wave_fetch", background = NA)
+```
+
+### Create initial stacks
 
 ```{r}
 #| label: create-stacks
@@ -979,8 +1164,9 @@ enviro_vars_current <- stack(c(
   ocean_temp_present["thetao_mean_2"],
   #air_temp_present,
   ph_present["ph_mean_2"],
-  terrain
-  #rock_ukash_rast
+  terrain,
+  #rock_rast_combined,
+  fetch_raster
 ))
 
 names(enviro_vars_current) <- c(
@@ -988,9 +1174,9 @@ names(enviro_vars_current) <- c(
   #"air_temp_2000",
   #"air_temp_2020",
   "ph",
-  "coastline_binary"
-  #"rocky_substrate
-)
+  "coastline_binary",
+  #"rocky_substrate",
+  "wave_fetch")
 
 names(enviro_vars_current)
 plot(enviro_vars_current) # plots each decade
@@ -999,8 +1185,9 @@ enviro_vars_future <- stack(c(
   ocean_temp_projected["thetao_mean_8"],
   #air_temp_projected,
   ph_projected["ph_mean_8"],
-  terrain
-  #rock_ukash_rast
+  terrain,
+  #rock_rast_combined,
+  fetch_raster
 ))
 
 names(enviro_vars_future) <- c(
@@ -1008,8 +1195,9 @@ names(enviro_vars_future) <- c(
   #"air_temp_2000",
   #"air_temp_2020",
   "ph",
-  "coastline_binary"
-  #"rocky_substrate
+  "coastline_binary",
+  #"rocky_substrate",
+  "wave_fetch" # we need the future 
 )
 
 plot(enviro_vars_future) # plots each decade
@@ -1040,7 +1228,7 @@ Semibalanus
 final_visual_semibalanus  <- final_visual_semibalanus[,-1]
 
 # plot
-plot(enviro_vars_current, 1, col = cols)
+plot(enviro_vars_current, 3, col = cols)
 lines(wrld)
 points(final_visual_semibalanus$lon, final_visual_semibalanus$lat, col = 'blue')
 ```
@@ -1254,6 +1442,56 @@ na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is
 table(na_points) #only 3 NA points
 ```
 
+### Finalise environmental stacks after tidying
+
+Let's now remove the coastline variables from the model.
+
+```{r}
+#| label: create-stacks-final
+
+enviro_vars_current <- stack(c(
+  ocean_temp_present["thetao_mean_2"],
+  #air_temp_present,
+  ph_present["ph_mean_2"],
+  #terrain,
+  #rock_rast_combined,
+  fetch_raster
+))
+
+names(enviro_vars_current) <- c(
+  "ocean_temp",
+  #"air_temp_2000",
+  #"air_temp_2020",
+  "ph",
+  #"coastline_binary",
+  #"rocky_substrate",
+  "wave_fetch")
+
+plot(enviro_vars_current)
+envir_terra <- rast(enviro_vars_current)
+
+enviro_vars_future <- stack(c(
+  ocean_temp_projected["thetao_mean_8"],
+  #air_temp_projected,
+  ph_projected["ph_mean_8"],
+  #terrain,
+  #rock_rast_combined,
+  fetch_raster
+))
+
+names(enviro_vars_future) <- c(
+  "ocean_temp",
+  #"air_temp_2000",
+  #"air_temp_2020",
+  "ph",
+  #"coastline_binary",
+  #"rocky_substrate",
+  "wave_fetch" # we need the future 
+)
+
+plot(enviro_vars_future) # plots each decade
+```
+
 ## `biomod2` workflow
 
 We are going to build our models and forecasts using the `biomod2` package. We will build four models, visualize their outputs and forecast changes into the far future (2100).
@@ -1297,15 +1535,20 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| results: hide
 
 myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
-  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  resp.var = rep(1, nrow(pts_clean)),
+  # presence-only
   expl.var = enviro_vars_current,
-  resp.xy = pts_clean, 
+  resp.xy = pts_clean,
   resp.name = 'Semibalanus.balanoides',
-  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
-  PA.nb.absences = 3 * nrow(pts_clean), # Number of pseudo-absences (~3 x number of presences)
+  PA.nb.rep = 1,
+  # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 3 * nrow(pts_clean),
+  # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides, # Evaluation responses (0/1)
-  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides,
+  # Evaluation responses (0/1)
+  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")],
+  # Evaluation locations,
   eval.expl.var = presvals_semibalanus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
 )
@@ -1351,15 +1594,20 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| results: hide
 
 myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
-  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  resp.var = rep(1, nrow(pts_clean)) ,
+  # presence-only
   expl.var = enviro_vars_current,
-  resp.xy = pts_clean, 
+  resp.xy = pts_clean,
   resp.name = 'Semibalanus.balanoides',
-  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
-  PA.nb.absences = 3 * nrow(pts_clean), # Number of pseudo-absences (~3 x number of presences)
+  PA.nb.rep = 1,
+  # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 3 * nrow(pts_clean),
+  # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides, # Evaluation responses (0/1)
-  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.resp.var = semibalanus_corrected_marclim_PA$Semibalanus.balanoides,
+  # Evaluation responses (0/1)
+  eval.resp.xy = semibalanus_corrected_marclim_PA[, c("lon", "lat")],
+  # Evaluation locations,
   eval.expl.var = presvals_semibalanus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
 )
@@ -1404,15 +1652,20 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| results: hide
 
 myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
-  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  resp.var = rep(1, nrow(pts_clean)) ,
+  # presence-only
   expl.var = enviro_vars_current,
-  resp.xy = pts_clean, 
+  resp.xy = pts_clean,
   resp.name = 'Chthamalus.montagui',
-  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
-  PA.nb.absences = 3 * nrow(pts_clean), # Number of pseudo-absences (~3 x number of presences)
+  PA.nb.rep = 1,
+  # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 3 * nrow(pts_clean),
+  # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui, # Evaluation responses (0/1)
-  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui,
+  # Evaluation responses (0/1)
+  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")],
+  # Evaluation locations,
   eval.expl.var = presvals_chthamalus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
 )
@@ -1456,15 +1709,20 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| results: hide
 
 myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
-  resp.var = rep(1, nrow(pts_clean)) , # presence-only
+  resp.var = rep(1, nrow(pts_clean)) ,
+  # presence-only
   expl.var = enviro_vars_current,
-  resp.xy = pts_clean, 
+  resp.xy = pts_clean,
   resp.name = 'Chthamalus.montagui',
-  PA.nb.rep = 1, # Number of pseudo-absence sets (10 recom by biomd)
-  PA.nb.absences = 3 * nrow(pts_clean), # Number of pseudo-absences (~3 x number of presences)
+  PA.nb.rep = 1,
+  # Number of pseudo-absence sets (10 recom by biomd)
+  PA.nb.absences = 3 * nrow(pts_clean),
+  # Number of pseudo-absences (~3 x number of presences)
   PA.strategy = 'random',
-  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui, # Evaluation responses (0/1)
-  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")], # Evaluation locations,
+  eval.resp.var = chthamalus_corrected_marclim_PA$Chthamalus.montagui,
+  # Evaluation responses (0/1)
+  eval.resp.xy = chthamalus_corrected_marclim_PA[, c("lon", "lat")],
+  # Evaluation locations,
   eval.expl.var = presvals_chthamalus_corrected_marclim_PA
   #filter.raster = TRUE #autofilter
 )
@@ -1512,9 +1770,6 @@ myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
   var.import = 2,
   metric.eval = c('TSS', 'ROC')
 )
-
-# seed.val = 123)
-# nb.cpu = 8)
 
 # check which options can be altered
 get_options(myBiomodModelOut_semibalanus_visual)
@@ -1565,7 +1820,7 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.3, 0.6),
+  metric.select.thresh = c(0.4, 0.7),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -1922,20 +2177,24 @@ bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined,
                       do.bivariate = TRUE)
 ```
 
-### Predictions
+### Current projections
 
-#### Prediction 1 (Semibalanus - visual)
+#### Projection 1 (Semibalanus - visual)
 
 ```{r}
 #| label: predict-model-semibalanus-visual
 #| echo: true
 #| results: hide
 
+#just using weighted mean models from now on
+
 myBiomodEMProj_semibalanus_visual <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_semibalanus_visual,
   proj.name = 'CurrentEM.semibalanus.visual',
   new.env = enviro_vars_current,
-  models.chosen = 'all',
+  models.chosen = c(
+    'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo', 
+    'Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo')
   #metric.binary = 'all',
   #metric.filter = 'all'
 )
@@ -1944,7 +2203,7 @@ myBiomodEMProj_semibalanus_visual
 plot(myBiomodEMProj_semibalanus_visual)
 ```
 
-#### Prediction 2 (Semibalanus - combined)
+#### Projection 2 (Semibalanus - combined)
 
 ```{r}
 #| label: predict-model-semibalanus-combined
@@ -1955,16 +2214,18 @@ myBiomodEMProj_semibalanus_combined <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_semibalanus_combined,
   proj.name = 'CurrentEM.semibalanus.combined',
   new.env = enviro_vars_current,
-  models.chosen = 'all',
-  metric.binary = 'all',
-  metric.filter = 'all'
+  models.chosen = c(
+    'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo', 
+    'Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo')
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProj_semibalanus_combined
 plot(myBiomodEMProj_semibalanus_combined)
 ```
 
-#### Prediction 3 (Chthamalus - visual)
+#### Projection 3 (Chthamalus - visual)
 
 ```{r}
 #| label: predict-model-chthamalus-visual
@@ -1975,16 +2236,18 @@ myBiomodEMProj_chthamalus_visual <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_chthamalus_visual,
   proj.name = 'CurrentEM.chthamalus.visual',
   new.env = enviro_vars_current,
-  models.chosen = 'all',
-  metric.binary = 'all',
-  metric.filter = 'all'
+  models.chosen = c(
+    'Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo', 
+    'Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo')
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProj_chthamalus_visual
 plot(myBiomodEMProj_chthamalus_visual)
 ```
 
-#### Prediction 4 (Chthamalus - combined)
+#### Projection 4 (Chthamalus - combined)
 
 ```{r}
 #| label: predict-model-chthamalus-combined
@@ -1995,9 +2258,11 @@ myBiomodEMProj_chthamalus_combined <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_chthamalus_combined,
   proj.name = 'CurrentEM.chthamalus.combined',
   new.env = enviro_vars_current,
-  models.chosen = 'all',
-  metric.binary = 'all',
-  metric.filter = 'all'
+  models.chosen = c(
+    'Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo', 
+    'Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo')
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProj_chthamalus_combined
@@ -2009,77 +2274,225 @@ plot(myBiomodEMProj_chthamalus_combined)
 #### Forecast 1 (Semibalanus - visual)
 
 ```{r}
-#| label: forecast-model-semibalanus-visual
-#| echo: true
+#| label: forecast-model-semibalanus-visual-EM
 
 myBiomodEMProjFuture_semibalanus_visual <- BIOMOD_EnsembleForecasting(
   bm.em = myBiomodEM_semibalanus_visual,
   proj.name = 'FutureEM.semibalanus.visual',
   new.env = enviro_vars_future,
-  models.chosen = 'all',
-  metric.binary = 'TSS'
-  #metric.filter = 'TSS'
+  models.chosen = c(
+    'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+  ),
+  metric.binary = 'all',
+  metric.filter = 'all'
 )
 
 myBiomodEMProjFuture_semibalanus_visual
 plot(myBiomodEMProjFuture_semibalanus_visual)
+```
 
-# Compute differences
-myBiomodRangeSize <- BIOMOD_RangeSize(
-  proj.current = myBiomodEMProj_semibalanus_visual,
-  proj.future = myBiomodEMProjFuture_semibalanus_visual,
-  metric.binary = "TSS"
+```{r}
+#| label: compare-range-sizes_semibalanus-visual
+
+# Project onto future conditions
+myBiomodProjectionFuture_semibalanus_visual <- BIOMOD_Projection(
+  bm.mod = myBiomodModelOut_semibalanus_visual,
+  proj.name = 'Future.single.semibalanus.visual',
+  new.env = enviro_vars_future,
+  models.chosen = 'all',
+  metric.binary = 'TSS',
+  build.clamping.mask = TRUE
 )
 
+# Load current and future binary projections
+CurrentProj_semibalanus_visual <- get_predictions(myBiomodProjectionFuture_semibalanus_visual, metric.binary = "TSS")
+FutureProj_semibalanus_visual <- get_predictions(myBiomodProjectionFuture_semibalanus_visual, metric.binary = "TSS")
+
+# Compute differences
+myBiomodRangeSize_semibalanus_visual <- BIOMOD_RangeSize(proj.current = CurrentProj_semibalanus_visual, proj.future = FutureProj_semibalanus_visual)
+
+myBiomodRangeSize_semibalanus_visual$Compt.By.Models
+plot(myBiomodRangeSize_semibalanus_visual$Diff.By.Pixel)
+
+# Represent main results
+gg_semibalanus_visual = bm_PlotRangeSize(
+  bm.range = myBiomodRangeSize_semibalanus_visual,
+  do.count = TRUE,
+  do.perc = TRUE,
+  do.maps = TRUE,
+  do.mean = TRUE,
+  do.plot = TRUE,
+  row.names = c("Species", "Dataset", "Run", "Algo")
+)
 ```
 
 #### Forecast 2 (Semibalanus - combined)
 
 ```{r}
 #| label: forecast-model-semibalanus-combined
-#| echo: true
-#| results: hide
 
-#myBiomodProjectionFuture_semibalanus_combined <- BIOMOD_Projection(
-  #bm.mod = myBiomodModelOut_semibalanus_combined,
-  #proj.name = 'Future.semibalanus.combined',
-  #new.env = enviro_vars_future,
-  #models.chosen = 'all',
-  #metric.binary = 'ROC',
-  #build.clamping.mask = TRUE
-#)
+myBiomodEMProjFuture_semibalanus_combined <- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_semibalanus_combined,
+  proj.name = 'FutureEM.semibalanus.combined',
+  new.env = enviro_vars_future,
+  models.chosen = c(
+    'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+  ),
+  metric.binary = 'all',
+  metric.filter = 'all'
+)
+
+myBiomodEMProjFuture_semibalanus_combined
+plot(myBiomodEMProjFuture_semibalanus_combined)
+```
+
+```{r}
+#| label: compare-range-sizes_semibalanus-combined
+
+# Project onto future conditions
+myBiomodProjectionFuture_semibalanus_combined <- BIOMOD_Projection(
+  bm.mod = myBiomodModelOut_semibalanus_combined,
+  proj.name = 'Future.single.semibalanus.combined',
+  new.env = enviro_vars_future,
+  models.chosen = 'all',
+  metric.binary = 'TSS',
+  build.clamping.mask = TRUE
+)
+
+# Load current and future binary projections
+CurrentProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
+                                                    metric.binary = "TSS")
+FutureProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
+                                                   metric.binary = "TSS")
+
+# Compute differences
+myBiomodRangeSize_semibalanus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_semibalanus_combined, proj.future = FutureProj_semibalanus_combined)
+
+myBiomodRangeSize_semibalanus_combined$Compt.By.Models
+plot(myBiomodRangeSize_semibalanus_combined$Diff.By.Pixel)
+
+# Represent main results
+gg_semibalanus_combined = bm_PlotRangeSize(
+  bm.range = myBiomodRangeSize_semibalanus_combined,
+  do.count = TRUE,
+  do.perc = TRUE,
+  do.maps = TRUE,
+  do.mean = TRUE,
+  do.plot = TRUE,
+  row.names = c("Species", "Dataset", "Run", "Algo")
+)
 ```
 
 #### Forecast 3 (Chthamalus - visual)
 
 ```{r}
 #| label: forecast-model-chthamalus-visual
-#| echo: true
-#| results: hide
 
-#myBiomodProjectionFuture_chthamalus_visual <- BIOMOD_Projection(
-  #bm.mod = myBiomodModelOut_chthamalus_visual,
-  #proj.name = 'Future.chthamalus.visual',
-  #new.env = enviro_vars_future,
-  #models.chosen = 'all',
-  #metric.binary = 'ROC',
-  #build.clamping.mask = TRUE
-#)
+myBiomodEMProjFuture_chthamalus_visual<- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_chthamalus_visual,
+  proj.name = 'FutureEM.chthamalus.visual',
+  new.env = enviro_vars_future,
+  models.chosen = c(
+    'chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+  ),
+  metric.binary = 'all',
+  metric.filter = 'all'
+)
+
+myBiomodEMProjFuture_chthamalus_visual
+plot(myBiomodEMProjFuture_chthamalus_visual)
+```
+
+```{r}
+#| label: compare-range-sizes_chthamalus-visual
+
+# Project onto future conditions
+myBiomodProjectionFuture_chthamalus_visual <- BIOMOD_Projection(
+  bm.mod = myBiomodModelOut_chthamalus_visual,
+  proj.name = 'Future.single.chthamalus.visual',
+  new.env = enviro_vars_future,
+  models.chosen = 'all',
+  metric.binary = 'TSS',
+  build.clamping.mask = TRUE
+)
+
+# Load current and future binary projections
+CurrentProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
+FutureProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
+
+# Compute differences
+myBiomodRangeSize_chthamalus_visual <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_visual, proj.future = FutureProj_chthamalus_visual)
+
+myBiomodRangeSize_chthamalus_visual$Compt.By.Models
+plot(myBiomodRangeSize_chthamalus_visual$Diff.By.Pixel)
+
+# Represent main results
+gg_chthamalus_visual = bm_PlotRangeSize(
+  bm.range = myBiomodRangeSize_chthamalus_visual,
+  do.count = TRUE,
+  do.perc = TRUE,
+  do.maps = TRUE,
+  do.mean = TRUE,
+  do.plot = TRUE,
+  row.names = c("Species", "Dataset", "Run", "Algo")
+)
 ```
 
 #### Forecast 4 (Chthamalus - combined)
 
 ```{r}
 #| label: forecast-model-chthamalus-combined
-#| echo: true
-#| results: hide
 
-#myBiomodProjectionFuture_chthamalus_combined <- BIOMOD_Projection(
-  #bm.mod = myBiomodModelOut_chthamalus_combined,
-  #proj.name = 'Future.chthamalus.combined',
-  #new.env = enviro_vars_future,
-  #models.chosen = 'all',
-  #metric.binary = 'ROC',
-  #build.clamping.mask = TRUE
-#)
+myBiomodEMProjFuture_chthamalus_combined<- BIOMOD_EnsembleForecasting(
+  bm.em = myBiomodEM_chthamalus_combined,
+  proj.name = 'FutureEM.chthamalus.combined',
+  new.env = enviro_vars_future,
+  models.chosen = c(
+    'chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
+    "chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
+  ),
+  metric.binary = 'all',
+  metric.filter = 'all'
+)
+
+myBiomodEMProjFuture_chthamalus_combined
+plot(myBiomodEMProjFuture_chthamalus_combined)
+```
+
+```{r}
+#| label: compare-range-sizes_chthamalus-combined
+
+# Project onto future conditions
+myBiomodProjectionFuture_chthamalus_combined <- BIOMOD_Projection(
+  bm.mod = myBiomodModelOut_chthamalus_combined,
+  proj.name = 'Future.single.chthamalus.combined',
+  new.env = enviro_vars_future,
+  models.chosen = 'all',
+  metric.binary = 'TSS',
+  build.clamping.mask = TRUE
+)
+
+# Load current and future binary projections
+CurrentProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
+FutureProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
+
+# Compute differences
+myBiomodRangeSize_chthamalus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_combined, proj.future = FutureProj_chthamalus_combined)
+
+myBiomodRangeSize_chthamalus_combined$Compt.By.Models
+plot(myBiomodRangeSize_chthamalus_combined$Diff.By.Pixel)
+
+# Represent main results
+gg_chthamalus_combined = bm_PlotRangeSize(
+  bm.range = myBiomodRangeSize_chthamalus_combined,
+  do.count = TRUE,
+  do.perc = TRUE,
+  do.maps = TRUE,
+  do.mean = TRUE,
+  do.plot = TRUE,
+  row.names = c("Species", "Dataset", "Run", "Algo")
+)
 ```
