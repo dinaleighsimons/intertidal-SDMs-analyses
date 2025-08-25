@@ -910,8 +910,6 @@ We can use the package `emodnet.wfs` to obtain a full UK habitat map from EMODne
 
 ```{r}
 #| label: import-from-emodnet_wfs
-#| eval: false
-#| include: false
 
 # service information 
 #services <- emodnet_wfs()
@@ -966,8 +964,6 @@ Unfortunately, we couldn't get intertidal data from the above products. Let's tr
 
 ```{r}
 #| label: read-in-UKASH-mosaic
-#| eval: false
-#| include: false
 
 # Path to the unzipped .gdb folder for UKASH Mosaic of Localised Maps (with intertidal zone)
 gdb_path <- "Data/Environmental_data/JNCC/UKASH_MosaicOfLocalisedMaps_v2025.gdb"
@@ -987,9 +983,6 @@ rock_ukash <- ukash %>%
 
 # make a raster and match format to the other environmental variables
 rock_ukash_rast <- raster::rasterize(rock_ukash, ocean_temp_present)
-
-# read in
-rocky_substrate_mosaic
 
 # plot
 rock_ukash_plot <- ggplot(rock_ukash) +
@@ -1013,8 +1006,6 @@ Two Microsoft access databases (primary and secondary) are available at <https:/
 
 ```{r}
 #| label: read-in-JNCC-snapshot-data
-#| eval: false
-#| include: false
 
 # lists the drivers already installed for excel, access ect...
 unique(odbc::odbcListDrivers()[[1]])
@@ -1067,8 +1058,6 @@ ggsave(rocky_map, filename = "Figures/JNCC_snapshot_littoral_map.jpeg")
 
 ```{r}
 #| label: remove-offshore-points-rocky
-#| eval: false
-#| include: false
 
 # Convert raster coastline (value=1 for land) to polygons
 coast_poly <- as.polygons(terrain, dissolve = TRUE, values = TRUE)
@@ -1111,8 +1100,6 @@ Let's combined the two JNCC sources so we have the best cover for our environmen
 
 ```{r}
 #| label: join-JNCC-rock-sources
-#| eval: false
-#| include: false
 
 # Ensure CRS matches
 biotype_sf <- st_transform(biotype_sf, crs(rock_ukash_rast))
@@ -1168,7 +1155,7 @@ plot(expanded_rock, main = "Expanded rocky substrate", col = "grey10")
 
 ### Wave fetch (Burrows)
 
-Wave fetch data is downloaded from <https://www.sams.ac.uk/people/researchers/burrows-professor-michael/>.
+2009 wave fetch data is downloaded from <https://www.sams.ac.uk/people/researchers/burrows-professor-michael/>.
 
 ```{r}
 #| label: wave-fetch
@@ -1177,14 +1164,14 @@ Wave fetch data is downloaded from <https://www.sams.ac.uk/people/researchers/bu
 fetch <- rast("Data/Environmental_data/wave_fetch.asc")
 
 # Adjust 'fact' depending on raster size (larger = faster, less detail)
-fetch_small <- aggregate(fetch, fact = 10, fun = mean)
+fetch_small <- aggregate(fetch, fact = 5, fun = mean)
 
 #Set land cells (value = 1) and open ocean (value = 0) to NA
 fetch_small[fetch_small == 1] <- NA
 fetch_small[fetch_small == 0] <- NA
 
 # Convert downsampled raster to data frame
-fetch_df <- as.data.frame(fetch_small, xy = TRUE)
+fetch_df <- as.data.frame(fetch_small, xy = TRUE) %>% na.omit()
 
 # Check column names
 colnames(fetch_df)  # usually "x", "y", "layer"
@@ -1199,6 +1186,9 @@ fetch_plot <- ggplot(fetch_df, aes(x = x, y = y, fill = wave_fetch)) +
        title = "Wave Fetch Raster")
 
 fetch_plot
+
+# Assuming 'fetch' is your SpatRaster object
+hist(fetch_small, main = "Wave Exposure Distribution", xlab = "Exposure Index", col = "lightblue")
 
 # make same as environmental data
 # Convert combined raster back to sf polygons if you want an sf version
@@ -1218,7 +1208,26 @@ fetch_sf_proj <- st_transform(wf_buffered, crs(ocean_temp_present))
 fetch_raster <- rasterize(vect(fetch_sf_proj), ocean_temp_present, field = "wave_fetch", background = NA)
 ```
 
-### Create initial stacks
+Provided an updated data set in 2021 accessible here - <https://figshare.com/articles/dataset/Wave_fetch_GIS_layers_for_the_UK_and_Ireland_at_200m_scale/12029682?file=22107477>.
+
+Values represent the log base 10 of the summed distance to the nearest land (as the number of 200m grid cell units) across all 32 11.5° sectors. This is the data we'll use for our models. Higher values mean more exposed, lower values mean less exposed.
+
+```{r}
+#| label: wave-fetch-data-burrows-2012
+
+# load and plot
+fetch_2012 <- rast("Data/Environmental_data/log10_eu200m1a.tif")
+plot(fetch_2012)
+
+# Reproject fetch to WGS84 (same CRS as ocean_temp)
+fetch_wgs84 <- project(fetch_2012, ocean_temp_present)
+
+# Resample to match ocean_temp grid (interpolates to same cells)
+fetch_resampled <- resample(fetch_wgs84, ocean_temp_present, method = "bilinear")
+plot(fetch_resampled)
+```
+
+### Create stacks
 
 ```{r}
 #| label: create-stacks
@@ -1230,7 +1239,7 @@ enviro_vars_current <- stack(c(
   ph_present["ph_mean_2"],
   #terrain,
   #rock_rast_combined,
-  fetch_raster
+  fetch_resampled
 ))
 
 names(enviro_vars_current) <- c(
@@ -1252,7 +1261,7 @@ enviro_vars_future <- stack(c(
   ph_projected["ph_mean_8"],
   #terrain,
   #rock_rast_combined,
-  fetch_raster
+  fetch_resampled
 ))
 
 names(enviro_vars_future) <- c(
@@ -1503,56 +1512,6 @@ head(chthamalus_corrected_combined)
 na_points <- apply(presvals_chthamalus_corrected_combined, 1, function(x) any(is.na(x)))
 
 table(na_points) #no NAs
-```
-
-### Finalize environmental stacks after tidying
-
-Let's now remove the coastline variables from the model.
-
-```{r}
-#| label: create-stacks-final
-
-enviro_vars_current <- stack(c(
-  ocean_temp_present["thetao_mean_2"],
-  #air_temp_present,
-  ph_present["ph_mean_2"],
-  #terrain,
-  #rock_rast_combined,
-  fetch_raster
-))
-
-names(enviro_vars_current) <- c(
-  "ocean_temp",
-  #"air_temp_2000",
-  #"air_temp_2020",
-  "ph",
-  #"coastline_binary",
-  #"rocky_substrate",
-  "wave_fetch")
-
-plot(enviro_vars_current)
-envir_terra <- rast(enviro_vars_current)
-
-enviro_vars_future <- stack(c(
-  ocean_temp_projected["thetao_mean_8"],
-  #air_temp_projected,
-  ph_projected["ph_mean_8"],
-  #terrain,
-  #rock_rast_combined,
-  fetch_raster
-))
-
-names(enviro_vars_future) <- c(
-  "ocean_temp",
-  #"air_temp_2000",
-  #"air_temp_2020",
-  "ph",
-  #"coastline_binary",
-  #"rocky_substrate",
-  "wave_fetch" # we need the future 
-)
-
-plot(enviro_vars_future) # plots each decade
 ```
 
 ## `biomod2` workflow
@@ -1829,33 +1788,92 @@ myBiomodModelOut_semibalanus_visual
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-visual-single
+#| label: make-and-save-figures-semi-bal-visual-individual
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-head(get_evaluations(myBiomodModelOut_semibalanus_visual))
-head(get_variables_importance(myBiomodModelOut_semibalanus_visual))
+# Set paths
+table_path <- "Data/Processed_Data/Semi.bal/Individual-Visual/"
+figure_path <- "Figures/Semi.bal/Individual-Visual/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual)
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'expl.var', 'run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_visual)[c(1:3, 12:14)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodModelOut_semibalanus_visual)
+var_imp <- get_variables_importance(myBiomodModelOut_semibalanus_visual)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "calibration")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'algo'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
+
+# calibration boxplots - by run
+eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'run'))
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'algo'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Variable importance boxplots - by run
+val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'run'))
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodModelOut_semibalanus_visual)[c(1:3, 12:14)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_visual)[c(1:3, 12:14)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
                       models.chosen = get_built_models(myBiomodModelOut_semibalanus_visual)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 13, height = 7)
 ```
 
 ```{r}
@@ -1881,32 +1899,85 @@ myBiomodEM_semibalanus_visual
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-visual-ensemble
+#| label: make-and-save-figures-semi-bal-visual-ensemble
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodEM_semibalanus_visual)
-get_variables_importance(myBiomodEM_semibalanus_visual)
+# Set paths
+table_path <- "Data/Processed_Data/Semi.bal/Ensemble-Visual/"
+figure_path <- "Figures/Semi.bal/Ensemble-Visual/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, group.by = 'full.name')
-bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('expl.var', 'full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('algo', 'expl.var', 'merged.by.run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[c(1, 6, 7)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodEM_semibalanus_visual)
+var_imp <- get_variables_importance(myBiomodEM_semibalanus_visual)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, group.by = 'full.name')
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('full.name', 'full.name'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, c('expl.var', 'full.name', 'full.name'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodEM_semibalanus_visual)[c(1, 6, 7)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[c(1, 6, 7)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[7],
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = get_built_models(myBiomodEM_semibalanus_visual)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
 ```
 
 #### Model 2 (Semibalanus - combined)
@@ -1935,33 +2006,92 @@ myBiomodModelOut_semibalanus_combined
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-combined-single
+#| label: make-and-save-figures-semi-bal-combined-individual
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodModelOut_semibalanus_combined)
-get_variables_importance(myBiomodModelOut_semibalanus_combined)
+# Set paths
+table_path <- "Data/Processed_Data/Semi.bal/Individual-Combined/"
+figure_path <- "Figures/Semi.bal/Individual-Combined/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined)
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'expl.var', 'run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[c(1:3, 12:14)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodModelOut_semibalanus_combined)
+var_imp <- get_variables_importance(myBiomodModelOut_semibalanus_combined)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "calibration")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'algo'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
+
+# calibration boxplots - by run
+eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'run'))
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'algo'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Variable importance boxplots - by run
+val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'run'))
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodModelOut_semibalanus_combined)[c(1:3, 12:14)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[c(1:3, 12:14)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
                       models.chosen = get_built_models(myBiomodModelOut_semibalanus_combined)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 13, height = 7)
 ```
 
 ```{r}
@@ -1987,32 +2117,85 @@ myBiomodEM_semibalanus_combined
 ```
 
 ```{r}
-#| label: explore-model-semibalanus-combined-ensemble
+#| label: make-and-save-figures-semi-bal-combined-ensemble
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodEM_semibalanus_combined)
-get_variables_importance(myBiomodEM_semibalanus_combined)
+# Set paths
+table_path <- "Data/Processed_Data/Semi.bal/Ensemble-Combined/"
+figure_path <- "Figures/Semi.bal/Ensemble-Combined/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, group.by = 'full.name')
-bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('algo', 'expl.var', 'merged.by.run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodEM_semibalanus_combined)
+var_imp <- get_variables_importance(myBiomodEM_semibalanus_combined)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, group.by = 'full.name')
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('full.name', 'full.name'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, c('expl.var', 'full.name', 'full.name'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Response curves
+models_to_plot <- models_to_plot <- get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[c(1, 6, 7)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
                       models.chosen = get_built_models(myBiomodEM_semibalanus_combined)[7],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
 ```
 
 #### Model 3 (Chthamalus - visual)
@@ -2041,33 +2224,92 @@ myBiomodModelOut_chthamalus_visual
 ```
 
 ```{r}
-#| label: explore-model-chthamalus-visual-single
+#| label: make-and-save-figures-chtham-mont-visual-individual
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodModelOut_chthamalus_visual)
-get_variables_importance(myBiomodModelOut_chthamalus_visual)
+# Set paths
+table_path <- "Data/Processed_Data/Chtham.mont/Individual-Visual/"
+figure_path <- "Figures/Chtham.mont/Individual-Visual/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual)
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'expl.var', 'run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
-                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[c(1:3, 12:14)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodModelOut_chthamalus_visual)
+var_imp <- get_variables_importance(myBiomodModelOut_chthamalus_visual)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "calibration")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'algo'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
+
+# calibration boxplots - by run
+eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'run'))
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'algo'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Variable importance boxplots - by run
+val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'run'))
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodModelOut_chthamalus_visual)[c(1:3, 12:14)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
-                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[c(1:3, 12:14)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
                       models.chosen = get_built_models(myBiomodModelOut_chthamalus_visual)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 13, height = 7)
 ```
 
 ```{r}
@@ -2093,32 +2335,85 @@ myBiomodEM_chthamalus_visual
 ```
 
 ```{r}
-#| label: explore-model-chthamalus-visual-ensemble
+#| label: make-and-save-figures-chath-mont-visual-ensemble
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodEM_chthamalus_visual)
-get_variables_importance(myBiomodEM_chthamalus_visual)
+# Set paths
+table_path <- "Data/Processed_Data/Chtham.mont/Ensemble-Visual/"
+figure_path <- "Figures/Chtham.mont/Ensemble-Visual/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, group.by = 'full.name')
-bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('algo', 'expl.var', 'merged.by.run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
-                      models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[c(1, 6, 7)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodEM_chthamalus_visual)
+var_imp <- get_variables_importance(myBiomodEM_chthamalus_visual)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, group.by = 'full.name')
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('full.name', 'full.name'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, c('expl.var', 'full.name', 'full.name'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodEM_chthamalus_visual)[c(1, 6, 7)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
-                      models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[c(1, 6, 7)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
                       models.chosen = get_built_models(myBiomodEM_chthamalus_visual)[7],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
 ```
 
 #### Model 4 (Chthamalus - combined)
@@ -2147,33 +2442,92 @@ myBiomodModelOut_chthamalus_combined
 ```
 
 ```{r}
-#| label: explore-model-chthamalus-combined-single
+#| label: make-and-save-figures-chtham-mont-combined-individual
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodModelOut_chthamalus_combined)
-get_variables_importance(myBiomodModelOut_chthamalus_combined)
+# Set paths
+table_path <- "Data/Processed_Data/Chtham.mont/Individual-Combined/"
+figure_path <- "Figures/Chtham.mont/Individual-Combined/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined)
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'algo'))
-bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'algo'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'expl.var', 'run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[c(1:3, 12:14)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodModelOut_chthamalus_combined)
+var_imp <- get_variables_importance(myBiomodModelOut_chthamalus_combined)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "calibration")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'algo'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
+
+# calibration boxplots - by run
+eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'run'))
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'algo'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Variable importance boxplots - by run
+val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'run'))
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodModelOut_chthamalus_combined)[c(1:3, 12:14)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
-                      models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[c(1:3, 12:14)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
                       models.chosen = get_built_models(myBiomodModelOut_chthamalus_combined)[3],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 13, height = 7)
 ```
 
 ```{r}
@@ -2199,32 +2553,85 @@ myBiomodEM_chthamalus_combined
 ```
 
 ```{r}
-#| label: explore-model-chthamalus-combined-ensemble
+#| label: make-and-save-figures-chath-mont-combined-ensemble
 #| echo: true
 #| results: hide
 
-# Get evaluation scores & variables importance
-get_evaluations(myBiomodEM_chthamalus_combined)
-get_variables_importance(myBiomodEM_chthamalus_combined)
+# Set paths
+table_path <- "Data/Processed_Data/Chtham.mont/Ensemble-Combined/"
+figure_path <- "Figures/Chtham.mont/Ensemble-Combined/"
 
-# Represent evaluation scores & variables importance
-bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, group.by = 'full.name')
-bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'full.name', 'full.name'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
-bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('algo', 'expl.var', 'merged.by.run'))
+# Create folders if they don't exist
+if (!dir.exists(table_path)) dir.create(table_path, recursive = TRUE)
+if (!dir.exists(figure_path)) dir.create(figure_path, recursive = TRUE)
 
-# Represent response curves
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[c(1, 6, 7)],
+# Get evaluation scores & variable importance tables
+eval_scores <- get_evaluations(myBiomodEM_chthamalus_combined)
+var_imp <- get_variables_importance(myBiomodEM_chthamalus_combined)
+
+write.csv(eval_scores, paste0(table_path, "Evaluations_All.csv"), row.names = TRUE)
+write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names = TRUE)
+
+# calibration means
+eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, group.by = 'full.name')
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_calib$tab
+
+write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+
+# evaluation means
+eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, dataset = "evaluation")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+tab <- eval_eval$tab
+write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+
+# calibration boxplots - overall 
+# table produced here same as above, already saved
+eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('full.name', 'full.name'))
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+                                                y = "Calibration")
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+
+# Variable importance boxplots - overall 
+# figures (table produced here same as above, already saved
+val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, c('expl.var', 'full.name', 'full.name'))
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
+
+# Response curves
+models_to_plot <- get_built_models(myBiomodEM_chthamalus_combined)[c(1, 6, 7)]
+
+# median
+response_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'median')
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
-                      models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[c(1, 6, 7)],
+tab <- response_median$tab
+plot <- response_median$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "ResponseCurves_Median.png"), width = 13, height = 7)
+
+# min
+response_min<-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = models_to_plot,
                       fixed.var = 'min')
-bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+tab <- response_min$tab
+plot <- response_min$plot + theme_classic() + labs(colour = "Prediction Name")
+write.csv(tab, paste0(table_path, "pred.vals.median.csv"), row.names = TRUE)
+ggsave(plot, file = paste0(figure_path, "pred.vals.median.png"), width = 13, height = 7)
+
+# heat map - median
+response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
                       models.chosen = get_built_models(myBiomodEM_chthamalus_combined)[7],
                       fixed.var = 'median',
                       do.bivariate = TRUE)
+plot <- response_heatmap_median$plot + theme_classic()
+ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
 ```
 
 ### Current projections
