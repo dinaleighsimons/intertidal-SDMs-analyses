@@ -163,6 +163,16 @@ snap_to_nearest_valid <- function(environment_stack, occurance_data) {
 }
 ```
 
+```{r}
+#| label: legend-extract-function
+
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+}
+```
+
 ## Occurrence data
 
 ### Import paired eDNA and MarClim occurrences
@@ -289,7 +299,7 @@ marclim_broad_sp_PA <- marclim_broad_sp_PA %>%
 #only within uK extent
 marclim_broad_sp_PA <- subset(marclim_broad_sp_PA,
   lon >= -10.8 & lon <= 2 &
-  lat >= 49.4 & lat <= 60.8
+  lat >= 49.72 & lat <= 60.8
 )
 
 # make individual species presence only datasets for maps
@@ -329,7 +339,9 @@ semibalanus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/semibalanus_2022.c
 
 # we only want 2022 and 2023 to match survey data
 semibalanus_GBIF_clean <- semibalanus_GBIF_clean %>% 
-  filter(year %in% c(2022, 2023))
+  filter(year %in% c(2022, 2023),
+         country %in% c("United Kingdom", "Isle of Man")) %>%  #filter out Ireland
+  filter(!(lon > -8.2 & lon < -5.4 & lat > 54.0 & lat < 55.3)) # filter out Northern Ireland
 
 # Phorcus
 
@@ -355,7 +367,9 @@ chthamalus_GBIF_clean <- read.csv("Data/Occurrence_data/GBIF/chthamalus_2022.csv
 
 # we only want 2022 and 2023 to match survey data
 chthamalus_GBIF_clean <- chthamalus_GBIF_clean %>% 
-  filter(year %in% c(2022, 2023))
+  filter(year %in% c(2022, 2023),
+         country %in% c("United Kingdom","Isle of Man")) %>%  #filter out Ireland
+  filter(!(lon > -8.2 & lon < -5.4 & lat > 54.0 & lat < 55.3)) # filter out Northern Ireland
 
 # Perforatus perforatus
 
@@ -472,7 +486,7 @@ head(final_visual_chthamalus)
 head(final_combined_chthamalus)
 ```
 
-### Visualize occurrences
+### Visualise occurrences
 
 Let's plot our occurrences on a map. Grey points are sources from GBIF, green points are sourced from our generated MarClim data, and blue points are sources from our generated eDNA data.
 
@@ -484,16 +498,28 @@ GBIF_colour = "#D6B11F"
 MarClim_colour = "#D44953"
 eDNA_colour= "#70CBFF"
 
+# Get UK boundaries at admin level 1 (countries/subunits)
+uk <- rnaturalearth::ne_countries(country = c("United Kingdom"), returnclass = "sf", scale = "large")
+
+northern_ireland <- rnaturalearth::ne_states(country = "United Kingdom", returnclass = "sf") %>%
+  filter(geonunit == "Northern Ireland")   %>% 
+  st_union() %>%      # merge all the small pieces
+  st_as_sf()          # back to sf object
+
+other_maps <- rnaturalearth::ne_countries(country = c("Ireland", "Isle of Man", "France"), returnclass = "sf", scale = "large")
+
 # Base ggplot map
 semibalanus_map <- ggplot() +
-  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
   # Add all points with color mapped to 'source'
   geom_jitter(data = final_combined_semibalanus, 
               aes(x = lon, y = lat, color = source), 
               size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
   
-  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  coord_sf(xlim = c(-8, 3), ylim = c(49.7, 61)) +
   theme_minimal() +
   labs(x = "Longitude", y = "Latitude", color = "Data source") +
   scale_color_manual(values = c(
@@ -514,14 +540,14 @@ ggsave(semibalanus_map, filename = "Figures/semibalanus_map.png", width = 8, hei
 
 # Base ggplot map
 chthamalus_map_legend <- ggplot() +
-  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
   
   # need to jitter points a bit so that some are not hidden
   geom_jitter(data = final_combined_chthamalus, 
               aes(x = lon, y = lat, color = source), 
               size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
   
-  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  coord_sf(xlim = c(-9, 3), ylim = c(49.7, 61)) +
   theme_minimal() +
   labs(x = "Longitude", y = "Latitude", color = "Data source") +
   scale_color_manual(values = c(
@@ -532,14 +558,16 @@ chthamalus_map_legend <- ggplot() +
   theme(legend.position = "bottom")
 
 chthamalus_map <- ggplot() +
-  geom_sf(data = wrld, fill = "grey98", color = "lightgray") +
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
   # need to jitter points a bit so that some are not hidden
   geom_jitter(data = final_combined_chthamalus, 
               aes(x = lon, y = lat, color = source), 
               size = 1.1, width = 0.025, height = 0.025, alpha = 0.6) +
   
-  coord_sf(xlim = c(-11, 3), ylim = c(49, 61)) +
+  coord_sf(xlim = c(-8, 3), ylim = c(49.7, 61)) +
   theme_minimal() +
   labs(x = "Longitude", y = "Latitude", color = "Data source") +
   scale_color_manual(values = c(
@@ -557,12 +585,6 @@ ggsave(chthamalus_map, filename = "Figures/chthamalus_map.png", width = 8, heigh
 
 ```{r}
 #| label: get-legend-for-plot
-
-g_legend<-function(a.gplot){
-  tmp <- ggplot_gtable(ggplot_build(a.gplot))
-  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
-  legend <- tmp$grobs[[leg]]
-}
 
 legend <- g_legend(chthamalus_map_legend)
 ```
@@ -593,6 +615,8 @@ ggsave(joint_map_long, filename = "Figures/chthamalus_semibalanus_map_long.png",
 
 ```{r}
 #| label: plot-occurance-GBIF-data-phorcus
+#| eval: false
+#| include: false
 
 # Set the file path and open the PNG device
 png(filename = paste("Figures/phorcus_occs_map_", minYear, ".png", sep = ""),
@@ -620,6 +644,8 @@ dev.off()
 
 ```{r}
 #| label: plot-occurance-GBIF-data-perforatus
+#| eval: false
+#| include: false
 
 # Set the file path and open the PNG device
 png(filename = paste("Figures/perforatus_occs_map_", minYear, ".png", sep = ""),
@@ -647,6 +673,8 @@ dev.off()
 
 ```{r}
 #| label: plot-occurance-GBIF-data-patella
+#| eval: false
+#| include: false
 
 # Set the file path and open the PNG device
 png(filename = paste("Figures/patella_occs_map_", minYear, ".png", sep = ""),
@@ -674,6 +702,8 @@ dev.off()
 
 ```{r}
 #| label: plot-occurance-GBIF-data-Bifurcaria
+#| eval: false
+#| include: false
 
 # Set the file path and open the PNG device
 png(filename = paste("Figures/bifurcaria_occs_map_", minYear, ".png", sep = ""),
@@ -765,15 +795,15 @@ points(xyInside, cex=0.75, pch=20, col='blue')
 
 ## Environmental data
 
-It's time to find environmental variables of interest. OCLE (<https://ocle.ihcantabria.com/>) provides meteo-oceanographic data for UK coastal communities, some of which are projected under future climate change scenarios.
+It's time to find environmental variables of interest. We have a few options here - let's explore them.
 
-To match the resolution of the projected estimates, we are going to download annual mean for each variable. Summer mean is available for historic periods, but not for projected periods.
+OCLE (<https://ocle.ihcantabria.com/>) provides meteo-oceanographic data for UK coastal communities, some of which are projected under future climate change scenarios. To match the resolution of the projected estimates, we are going to download annual mean for each variable. Summer mean is available for historic periods, but not for projected periods. Decided not to use this one.
 
 ```{r}
 #| label: plot-features
 
 # set uk extent and colours
-uk_extent <- extent(-11, 2, 49.5, 61)
+uk_extent <- extent(-8, 2, 49.7, 61)
 cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
 ```
 
@@ -781,7 +811,7 @@ cols <- colorRampPalette(c("blue", "lightblue", "yellow", "red"))(100)
 
 Bio-ORACLE is a comprehensive data set providing a wide range of marine environmental variables tailored for ecological and biogeographical analysis. These variables include surface and benthic values for parameters such as temperature, salinity, nutrients, oxygen, pH, and more, derived from satellite and modeled oceanographic data.
 
-We use the `biooracler` package here to obtain our environmental variables of interest from current and projected periods. We just load the datasets and skip running this code for now to save memory.
+We use the `biooracler` package here to obtain our environmental variables of interest from current and projected periods.
 
 ```{r}
 #| label: variables-from-biooracle
@@ -792,8 +822,8 @@ We use the `biooracler` package here to obtain our environmental variables of in
 biooracler_layers <- biooracler::list_layers()
 
 # define lat long
-uk_lat <- c(49.39,60.8626)
-uk_long <- c(-10.9968,2.5643)
+uk_lat <- c(49.7, 61)
+uk_long <- c(-8, 2)
 
 # example of selecting five variables from three datasets
 datasets <- list(
@@ -1208,7 +1238,7 @@ fetch_sf_proj <- st_transform(wf_buffered, crs(ocean_temp_present))
 fetch_raster <- rasterize(vect(fetch_sf_proj), ocean_temp_present, field = "wave_fetch", background = NA)
 ```
 
-Provided an updated data set in 2021 accessible here - <https://figshare.com/articles/dataset/Wave_fetch_GIS_layers_for_the_UK_and_Ireland_at_200m_scale/12029682?file=22107477>.
+Provided an updated data set in 2012 accessible here - <https://figshare.com/articles/dataset/Wave_fetch_GIS_layers_for_the_UK_and_Ireland_at_200m_scale/12029682?file=22107477>.
 
 Values represent the log base 10 of the summed distance to the nearest land (as the number of 200m grid cell units) across all 32 11.5° sectors. This is the data we'll use for our models. Higher values mean more exposed, lower values mean less exposed.
 
