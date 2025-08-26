@@ -900,11 +900,16 @@ plot(
   col = cols
 )
 
+ocean_temp_avg <- mean(ocean_temp_present)
+ocean_temp_avg
+
 ocean_temp_projected = readRDS("Data/Environmental_data/BIO-ORACLE/thetao_ssp585_2020_2100_depthsurf.rds")
 plot(
   ocean_temp_projected,
   col = cols
 )
+
+ocean_temp_projected_90 = ocean_temp_projected["thetao_mean_8"]
 
 ## air temp
 air_temp_present = readRDS("Data/Environmental_data/BIO-ORACLE/tas_baseline_2000_2020_depthsurf.rds")
@@ -924,9 +929,14 @@ ph_present = readRDS("Data/Environmental_data/BIO-ORACLE/ph_baseline_2000_2018_d
 plot(ph_present,
      col = cols)
 
+ph_avg <- mean(ph_present)
+ph_avg
+
 ph_projected = readRDS("Data/Environmental_data/BIO-ORACLE/ph_ssp585_2020_2100_depthsurf.rds")
 plot(ph_projected,
      col = cols)
+
+ph_projected_90 <- ph_projected["ph_mean_8"]
 
 # terrain
 terrain <- readRDS("Data/Environmental_data/BIO-ORACLE/terrain_characteristics.rds")
@@ -1166,21 +1176,21 @@ expanded_rock[expanded_rock == 1] <- 1
 plot(expanded_rock, main = "Expanded rocky substrate", col = "grey10")
 
 # Convert combined raster back to sf polygons if you want an sf version
-#combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
+combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
 
 # keep 1 as 1, set everything else to NA
-#rock01 <- ifel(combined_rock_rast == 1, 1, NA)
+rock01 <- ifel(combined_rock_rast == 1, 1, NA)
 
 # polygonize only the 1s
-#pol1 <- as.polygons(rock01, dissolve = TRUE, na.rm = TRUE)
-#combined_rock_sf <- st_as_sf(pol1)
+pol1 <- as.polygons(rock01, dissolve = TRUE, na.rm = TRUE)
+combined_rock_sf <- st_as_sf(pol1)
 
 # optional cleanup
-#combined_rock_sf <- sf::st_make_valid(combined_rock_sf)
-#combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
+combined_rock_sf <- sf::st_make_valid(combined_rock_sf)
+combined_rock_sf <- sf::st_cast(combined_rock_sf, "MULTIPOLYGON")
 
 # make a raster and match format to the other environmental variables
-#rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present
+rock_rast_combined <- raster::rasterize(combined_rock_sf, ocean_temp_present)
 ```
 
 ### Wave fetch (Burrows)
@@ -1264,9 +1274,9 @@ plot(fetch_resampled)
 
 # stack
 enviro_vars_current <- stack(c(
-  ocean_temp_present["thetao_mean_2"],
+  ocean_temp_avg,
   #air_temp_present,
-  ph_present["ph_mean_2"],
+  ph_avg,
   #terrain,
   #rock_rast_combined,
   fetch_resampled
@@ -1283,12 +1293,26 @@ names(enviro_vars_current) <- c(
   )
 
 names(enviro_vars_current)
-plot(enviro_vars_current) # plots each decade
+
+#plot
+png(
+  "Figures/enviro_vars_current.png",
+  width = 2000,
+  height = 2000,
+  res = 300
+)
+
+plot(enviro_vars_current,
+     main = c("Sea Surface Temperature (SST)", "pH", "Wave fetch"))
+
+dev.off()
+# future
+
 
 enviro_vars_future <- stack(c(
-  ocean_temp_projected["thetao_mean_8"],
+  ocean_temp_projected_90,
   #air_temp_projected,
-  ph_projected["ph_mean_8"],
+  ph_projected_90,
   #terrain,
   #rock_rast_combined,
   fetch_resampled
@@ -1304,7 +1328,49 @@ names(enviro_vars_future) <- c(
   "wave_fetch" # we need the future 
 )
 
-plot(enviro_vars_future) # plots each decade
+
+#plot
+png(
+  "Figures/enviro_vars_future.png",
+  width = 2000,
+  height = 2000,
+  res = 300
+)
+
+plot(enviro_vars_future,
+     main = c("Sea Surface Temperature (SST)", "pH", "Wave fetch"))
+
+dev.off()
+
+# Combine both stacks into one for plot
+enviro_both <- stack(enviro_vars_current, enviro_vars_future)
+enviro_both <- dropLayer(enviro_both, nlayers(enviro_both))
+
+# add in rocky layer
+rock_rast_raster <- raster(rock_rast_combined)
+names(rock_rast_raster) <- "rocky_substrate_binary"
+enviro_both <- stack(enviro_both, rock_rast_raster)
+
+#plot
+
+# Save high-resolution plot
+png(
+  "Figures/enviro_vars.png",
+  width = 2500,
+  height = 2000,
+  res = 300
+)
+
+plot(enviro_both,
+     main = c("Sea surface temperature (Current)", 
+              "pH (Current)", 
+              "Wave fetch", 
+              "Sea surface temperature (Future)", 
+              "pH (Future)", 
+              "Rocky substrate")
+)
+
+dev.off()
 ```
 
 ### Check co-linearity
