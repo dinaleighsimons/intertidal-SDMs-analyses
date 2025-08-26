@@ -1,0 +1,7 @@
+"","name","mean1","mean2","sd1","sd2"
+"1","Chthamalus.montagui_EMcaByROC_mergedData_mergedRun_mergedAlgo",0.993,0.92,NA,NA
+"2","Chthamalus.montagui_EMcaByTSS_mergedData_mergedRun_mergedAlgo",0.992,0.92,NA,NA
+"3","Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo",0.988,0.92,NA,NA
+"4","Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo",0.988,0.92,NA,NA
+"5","Chthamalus.montagui_EMwmeanByROC_mergedData_mergedRun_mergedAlgo",0.988,0.92,NA,NA
+"6","Chthamalus.montagui_EMwmeanByTSS_mergedData_mergedRun_mergedAlgo",0.987,0.92,NA,NA
