@@ -510,7 +510,7 @@ other_maps <- rnaturalearth::ne_countries(country = c("Ireland", "Isle of Man", 
 
 # Base ggplot map
 semibalanus_map <- ggplot() +
-  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = uk, fill = "grey98", color = "grey") +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
@@ -558,7 +558,7 @@ chthamalus_map_legend <- ggplot() +
   theme(legend.position = "bottom")
 
 chthamalus_map <- ggplot() +
-  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = uk, fill = "grey98", color = "grey") +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
@@ -1158,6 +1158,27 @@ rocky_rast <- rasterize(biotype_vect, rocky_template, field = 1, background = NA
 # Combine with existing rock raster
 combined_rock_rast <- cover(rocky_rast, rock_ukash_rast)
 
+# add in missing bits (highlands coast, wales)
+
+# top coast highlands
+north_coast_ext <- ext(-5.5, -2.5, 58.2, 58.9)
+r <- terrain
+r_crop <- crop(r, north_coast_ext)
+r_crop <- resample(r_crop, combined_rock_rast, method = "near")
+combined_rock_rast <- cover(combined_rock_rast, r_crop)
+
+# wales
+wales_ext <- ext(-5.5, -4.4,  51.5, 52.2)
+r_crop2 <- crop(r, wales_ext)
+r_crop2 <- resample(r_crop2, combined_rock_rast, method = "near")
+combined_rock_rast <- cover(combined_rock_rast, r_crop2)
+
+# big scotland islands
+isles_ext <- ext(-7.8, -5.1,  54.7, 58.7)
+r_crop3 <- crop(r, isles_ext)
+r_crop3 <- resample(r_crop3, combined_rock_rast, method = "near")
+combined_rock_rast <- cover(combined_rock_rast, r_crop3)
+
 # Plot
 plot(combined_rock_rast, main = "Rocky substrate (binary)", col = "grey10")
 res(combined_rock_rast) #0.05 x 0.05
@@ -1174,6 +1195,8 @@ expanded_rock[expanded_rock == 0] <- NA
 expanded_rock[expanded_rock == 1] <- 1
 
 plot(expanded_rock, main = "Expanded rocky substrate", col = "grey10")
+
+expanded_rock_coast_only <- mask(expanded_rock, terrain)
 
 # Convert combined raster back to sf polygons if you want an sf version
 combined_rock_sf <- st_as_sf(as.polygons(combined_rock_rast, dissolve = TRUE, values = TRUE))
@@ -1987,7 +2010,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -1995,7 +2018,7 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, 
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
 ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
@@ -2003,25 +2026,25 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, h
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'algo'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
 
 # calibration boxplots - by run
 eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('algo', 'run'))
-plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'algo'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Variable importance boxplots - by run
 val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_visual, group.by = c('expl.var', 'algo', 'run'))
-plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
 
 # Response curves
@@ -2098,25 +2121,25 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, group.by = 'full.name')
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Type") + theme(legend.position = "bottom")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_visual, group.by = c('full.name', 'full.name'))
 plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
                                                 y = "Calibration")
-ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 5, height = 3)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
@@ -2205,7 +2228,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -2213,7 +2236,7 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, 
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
 ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
@@ -2221,20 +2244,20 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, h
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'algo'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
 
 # calibration boxplots - by run
 eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('algo', 'run'))
-plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_semibalanus_combined, group.by = c('expl.var', 'algo', 'algo'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Variable importance boxplots - by run
@@ -2284,7 +2307,7 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.3, 0.6),
+  metric.select.thresh = c(0.4, 0.7),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2316,23 +2339,23 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, group.by = 'full.name')
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_semibalanus_combined, group.by = c('full.name', 'full.name'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Type",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
 
@@ -2423,7 +2446,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -2431,7 +2454,7 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, 
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
 ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
@@ -2439,25 +2462,25 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, h
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'algo'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
 
 # calibration boxplots - by run
 eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('algo', 'run'))
-plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'algo'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Variable importance boxplots - by run
 val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_visual, group.by = c('expl.var', 'algo', 'run'))
-plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
 
 # Response curves
@@ -2502,7 +2525,7 @@ myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.3, 0.6),
+  metric.select.thresh = c(0.4, 0.7),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2534,7 +2557,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, group.by = 'full.name')
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -2542,26 +2565,26 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10,
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('full.name', 'full.name'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Type",
                                                 y = "Calibration")
-ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, c('expl.var', 'full.name', 'full.name'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Type")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_visual, group.by = c('expl.var', 'algo', 'merged.by.run'))
-plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Type")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Response curves
@@ -2641,7 +2664,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -2649,7 +2672,7 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, 
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
 ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
@@ -2657,25 +2680,25 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, h
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'algo'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 7, height = 5)
 
 # calibration boxplots - by run
 eval_boxplot_algo_run <- bm_PlotEvalBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('algo', 'run'))
-plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo_run$plot + theme_classic() + labs(fill = "Algorithm",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot_run.png"), width = 8, height = 6)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'algo'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Variable importance boxplots - by run
 val_importance_boxplot_run <- bm_PlotVarImpBoxplot(bm.out = myBiomodModelOut_chthamalus_combined, group.by = c('expl.var', 'algo', 'run'))
-plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot_run$plot + theme_classic() + labs(fill = "Algorithm")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo_Run.png"), width = 8, height = 6)
 
 # Response curves
@@ -2720,7 +2743,7 @@ myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.3, 0.6),
+  metric.select.thresh = c(0.4, 0.7),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2752,7 +2775,7 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, group.by = 'full.name')
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_calib$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
@@ -2760,26 +2783,26 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10,
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Model")
+plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 10, height = 5)
+ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
 eval_boxplot_algo <- bm_PlotEvalBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('full.name', 'full.name'))
-plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Model",
+plot <- eval_boxplot_algo$plot + theme_classic() + labs(fill = "Type",
                                                 y = "Calibration")
 ggsave(plot, file = paste0(figure_path, "EvalMean_boxplot.png"), width = 10, height = 5)
 
 # Variable importance boxplots - overall 
 # figures (table produced here same as above, already saved
 val_importance_boxplot <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, c('expl.var', 'full.name', 'full.name'))
-plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot$plot + theme_classic() + labs(fill = "Type")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 val_importance_boxplot_merged <- bm_PlotVarImpBoxplot(bm.out = myBiomodEM_chthamalus_combined, group.by = c('expl.var', 'algo', 'merged.by.run'))
-plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Model")
+plot <- val_importance_boxplot_merged$plot + theme_classic() + labs(fill = "Type")
 ggsave(plot, file = paste0(figure_path, "VarImpBoxplot_ExplVar_Algo.png"), width = 8, height = 8)
 
 # Response curves
@@ -2854,26 +2877,26 @@ plot(proj_semibalanus_visual_masked)
 r_layer <- proj_semibalanus_visual_masked[[1]] 
 
 # Convert SpatRaster to data frame for ggplot
-r_df <- as.data.frame(r_layer, xy = TRUE)
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
 colnames(r_df) <- c("x", "y", "suitability")
 
-# Load UK outline
-uk <- rnaturalearth::ne_countries(country = "United Kingdom",
-                                  scale = "large",
-                                  returnclass = "sf")
 # plot
 semibalanus_visual_current_plot_TSS <- ggplot() +
-  geom_sf(
-    data = uk,
-    fill = "grey98",       # land
-    color = "grey80",
-    size = 0.7
-  ) +
+  
+ geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
   geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
   scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
   coord_sf(
-    xlim = c(-11, 2.6),
-    ylim = c(49.35, 60.9),
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
     expand = FALSE
   ) +
   theme_minimal(base_size = 14) +
@@ -2932,23 +2955,27 @@ plot(proj_semibalanus_combined_masked)
 r_layer <- proj_semibalanus_combined_masked[[1]] 
 
 # Convert SpatRaster to data frame for ggplot
-r_df <- as.data.frame(r_layer, xy = TRUE)
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
 colnames(r_df) <- c("x", "y", "suitability")
 
 # plot
 semibalanus_combined_current_plot_TSS <- ggplot() +
-  geom_sf(
-    data = uk,
-    fill = "grey98",       # land
-    color = "grey80",
-    size = 0.7
-  ) +
+  
+ geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
   geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
   scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
   labs(fill = NULL) + 
   coord_sf(
-    xlim = c(-11, 2.6),
-    ylim = c(49.35, 60.9),
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
     expand = FALSE
   ) +
   theme_minimal(base_size = 14) +
@@ -3005,23 +3032,27 @@ plot(proj_chthamalus_visual_masked)
 r_layer <- proj_chthamalus_visual_masked[[1]] 
 
 # Convert SpatRaster to data frame for ggplot
-r_df <- as.data.frame(r_layer, xy = TRUE)
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
 colnames(r_df) <- c("x", "y", "suitability")
 
 # plot
 chthamalus_visual_current_plot_TSS <- ggplot() +
-  geom_sf(
-    data = uk,
-    fill = "grey98",       # land
-    color = "grey80",
-    size = 0.7
-  ) +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
   geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
   scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
   labs(fill = NULL) + 
   coord_sf(
-    xlim = c(-11, 2.6),
-    ylim = c(49.35, 60.9),
+       xlim = c(-8, 3),
+    ylim = c(49.7, 61),
     expand = FALSE
   ) +
   theme_minimal(base_size = 14) +
@@ -3078,23 +3109,27 @@ plot(proj_chthamalus_combined_masked)
 r_layer <- proj_chthamalus_combined_masked[[1]] 
 
 # Convert SpatRaster to data frame for ggplot
-r_df <- as.data.frame(r_layer, xy = TRUE)
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
 colnames(r_df) <- c("x", "y", "suitability")
 
 #plot
 chthamalus_combined_current_plot_TSS <- ggplot() +
-  geom_sf(
-    data = uk,
-    fill = "grey98",       # land
-    color = "grey80",
-    size = 0.7
-  ) +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
   geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
   scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
   labs(fill = NULL) +   # 🚨 remove legend title
   coord_sf(
-    xlim = c(-11, 2.6),
-    ylim = c(49.35, 60.9),
+        xlim = c(-8, 3),
+    ylim = c(49.7, 61),
     expand = FALSE
   ) +
   theme_minimal(base_size = 14) +
@@ -3126,13 +3161,13 @@ current_projections_plot <- cowplot::plot_grid(
   semibalanus_visual_current_plot_TSS,
   semibalanus_combined_current_plot_TSS,
   chthamalus_visual_current_plot_TSS,
-  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("a) SB-Citizen", "b) SB-Combined", "c) CM-Citizen", "d) CM-Combined"), align = "hv"
+  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("(a) Citizen-only (SB)", "(b) Citizen-eDNA (SB)", "(c) Citizen-only (CM)", "(d) Citizen-eDNA (CM)"), align = "hv", label_fontface = "bold"
 )
 
 current_projections_plot
 
 # Save the plot
-ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 8, height = 9, dpi = 300)
+ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 12, height = 14, dpi = 300)
 ```
 
 ### Forecasting change
@@ -3149,9 +3184,9 @@ myBiomodEMProjFuture_semibalanus_visual <- BIOMOD_EnsembleForecasting(
   models.chosen = c(
     'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
     "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
-  ),
-  metric.binary = 'all',
-  metric.filter = 'all'
+  )
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProjFuture_semibalanus_visual
@@ -3205,9 +3240,9 @@ myBiomodEMProjFuture_semibalanus_combined <- BIOMOD_EnsembleForecasting(
   models.chosen = c(
     'Semibalanus.balanoides_EMmeanByTSS_mergedData_mergedRun_mergedAlgo',
     "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo"
-  ),
-  metric.binary = 'all',
-  metric.filter = 'all'
+  )
+  #metric.binary = 'all',
+  #metric.filter = 'all'
 )
 
 myBiomodEMProjFuture_semibalanus_combined
