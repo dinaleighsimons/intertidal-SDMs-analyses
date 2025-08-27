@@ -758,7 +758,7 @@ points(semibalanus_GBIF_clean)
 points(acsel, cex=1, col='red', pch='x') # selected points in red
 ```
 
-## Absence and presence points (background points)
+### Absence and presence points (background points)
 
 Let's sample background points within a radius of presence points (as seen in VanDerWal et al, 2009).
 
@@ -2010,18 +2010,18 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_cal_plot_SB_CO <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+ggsave(algorithm_cal_plot_SB_CO, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_eval_plot_SB_CO <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(algorithm_eval_plot_SB_CO, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2121,18 +2121,18 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, group.by = 'full.name')
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Type") + theme(legend.position = "bottom")
+ensemble_cal_plot_SB_CO <- eval_calib$plot + theme_classic() + labs(colour = "Type") + theme(legend.position = "bottom")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+ggsave(ensemble_cal_plot_SB_CO, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
+ensemble_eval_plot_SB_CO <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(ensemble_eval_plot_SB_CO, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2228,18 +2228,18 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_cal_plot_SB_CE <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+ggsave(algorithm_cal_plot_SB_CE, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_semibalanus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_eval_plot_SB_CE <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(algorithm_eval_plot_SB_CE, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2347,10 +2347,10 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, 
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_semibalanus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
+ensemble_eval_plot_SB_CE <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(ensemble_eval_plot_SB_CE, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2397,6 +2397,39 @@ response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus
                       do.bivariate = TRUE)
 plot <- response_heatmap_median$plot + theme_classic()
 ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
+```
+
+#### Semibalanus assessment figures
+
+```{r}
+#| label: joint-assessment-figures-SB
+
+SB_assessment_plot <- cowplot::plot_grid(
+  ensemble_eval_plot_SB_CO,
+  ensemble_eval_plot_SB_CE,
+  algorithm_cal_plot_SB_CO,
+  algorithm_cal_plot_SB_CE,
+  algorithm_eval_plot_SB_CO,
+  algorithm_eval_plot_SB_CE,
+  ncol = 2, 
+  labels = c("a) Ensemble (Citizen-only)", 
+             "b) Ensemble (Citizen-eDNA)", 
+             "c) Algorithms (Calibration, Citizen-only)", 
+             "d) Algorithms (Calibration, Citizen-eDNA)",
+             "e) Algorithms (Evaluation, Citizen-only)",
+             "f) Algorithms (Evaluation, Citizen-eDNA)"), 
+  align = "v",
+  label_x = 0,   # left align labels (0 = far left, 1 = far right)
+  label_y = 1.01,   # push labels to the very top
+  hjust = 0,     # left-justify text relative to x-position
+  vjust = 1,      # align with top edge
+  label_size = 10 
+)
+
+SB_assessment_plot
+
+# Save the plot
+ggsave(SB_assessment_plot, filename = "Figures/SB_assessment_plot.png", width = 12, height = 15, dpi = 300)
 ```
 
 #### Model 3 (Chthamalus - visual)
@@ -2446,18 +2479,18 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_cal_plot_CM_CO <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+ggsave(algorithm_cal_plot_CM_CO, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_eval_plot_CM_CO <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(algorithm_eval_plot_CM_CO, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2565,10 +2598,10 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10,
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_visual, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
+ensemble_eval_plot_CM_CO <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(ensemble_eval_plot_CM_CO, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2664,18 +2697,18 @@ write.csv(var_imp, paste0(table_path, "VariablesImportance_All.csv"), row.names 
 
 # calibration means
 eval_calib <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "calibration")
-plot <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_cal_plot_CM_CE <- eval_calib$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_calib$tab
 
 write.csv(tab, paste0(table_path, "EvalMean_Calibration.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
+ggsave(algorithm_cal_plot_CM_CE, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 7, height = 5)
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodModelOut_chthamalus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
+algorithm_eval_plot_CM_CE <- eval_eval$plot + theme_classic() + labs(colour = "Algorithm")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(algorithm_eval_plot_CM_CE, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2783,10 +2816,10 @@ ggsave(plot, file = paste0(figure_path, "EvalMean_Calibration.png"), width = 10,
 
 # evaluation means
 eval_eval <- bm_PlotEvalMean(bm.out = myBiomodEM_chthamalus_combined, dataset = "evaluation")
-plot <- eval_eval$plot + theme_classic() + labs(colour = "Type")
+ensemble_eval_plot_CM_CE <- eval_eval$plot + theme_classic() + labs(colour = "Type")
 tab <- eval_eval$tab
 write.csv(tab, paste0(table_path, "EvalMean_Evaluation.csv"), row.names = TRUE)
-ggsave(plot, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
+ggsave(ensemble_eval_plot_CM_CE, file = paste0(figure_path, "EvalMean_Evaluation.png"), width = 7, height = 5)
 
 # calibration boxplots - overall 
 # table produced here same as above, already saved
@@ -2833,6 +2866,42 @@ response_heatmap_median <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_
                       do.bivariate = TRUE)
 plot <- response_heatmap_median$plot + theme_classic()
 ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), width = 15, height = 7)
+```
+
+#### Chthamalus assessment figures
+
+```{r}
+#| label: joint-assessment-figures-CM
+
+CM_assessment_plot <- cowplot::plot_grid(
+  ensemble_eval_plot_CM_CO,
+  ensemble_eval_plot_CM_CE,
+  algorithm_cal_plot_CM_CO,
+  algorithm_cal_plot_CM_CE,
+  algorithm_eval_plot_CM_CO,
+  algorithm_eval_plot_CM_CE,
+  ncol = 2, 
+  labels = c(
+    "a) Ensemble (Citizen-only)", 
+    "b) Ensemble (Citizen-eDNA)", 
+    "c) Algorithms (Calibration, Citizen-only)", 
+    "d) Algorithms (Calibration, Citizen-eDNA)",
+    "e) Algorithms (Evaluation, Citizen-only)",
+    "f) Algorithms (Evaluation, Citizen-eDNA)"
+  ),
+  align = "v",
+  label_x = 0,   # left align labels (0 = far left, 1 = far right)
+  label_y = 1.01,   # push labels to the very top
+  hjust = 0,     # left-justify text relative to x-position
+  vjust = 1,      # align with top edge
+  label_size = 10 
+)
+
+
+CM_assessment_plot
+
+# Save the plot
+ggsave(CM_assessment_plot, filename = "Figures/CM_assessment_plot.png", width = 12, height = 15, dpi = 300)
 ```
 
 ### Current projections
