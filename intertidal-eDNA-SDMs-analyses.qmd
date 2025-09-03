@@ -2412,12 +2412,12 @@ SB_assessment_plot <- cowplot::plot_grid(
   algorithm_eval_plot_SB_CO,
   algorithm_eval_plot_SB_CE,
   ncol = 2, 
-  labels = c("a) Ensemble (Citizen-only)", 
-             "b) Ensemble (Citizen-eDNA)", 
-             "c) Algorithms (Calibration, Citizen-only)", 
-             "d) Algorithms (Calibration, Citizen-eDNA)",
-             "e) Algorithms (Evaluation, Citizen-only)",
-             "f) Algorithms (Evaluation, Citizen-eDNA)"), 
+  labels = c("a) Ensemble (GBIF-only)", 
+             "b) Ensemble (GBIF-eDNA)", 
+             "c) Algorithms (Calibration, GBIF-only)", 
+             "d) Algorithms (Calibration, GBIF-eDNA)",
+             "e) Algorithms (Evaluation, GBIF-only)",
+             "f) Algorithms (Evaluation, GBIF-eDNA)"), 
   align = "v",
   label_x = 0,   # left align labels (0 = far left, 1 = far right)
   label_y = 1.01,   # push labels to the very top
@@ -2882,12 +2882,12 @@ CM_assessment_plot <- cowplot::plot_grid(
   algorithm_eval_plot_CM_CE,
   ncol = 2, 
   labels = c(
-    "a) Ensemble (Citizen-only)", 
-    "b) Ensemble (Citizen-eDNA)", 
-    "c) Algorithms (Calibration, Citizen-only)", 
-    "d) Algorithms (Calibration, Citizen-eDNA)",
-    "e) Algorithms (Evaluation, Citizen-only)",
-    "f) Algorithms (Evaluation, Citizen-eDNA)"
+    "a) Ensemble (GBIF-only)", 
+    "b) Ensemble (GBIF-eDNA)", 
+    "c) Algorithms (Calibration, GBIF-only)", 
+    "d) Algorithms (Calibration, GBIF-eDNA)",
+    "e) Algorithms (Evaluation, GBIF-only)",
+    "f) Algorithms (Evaluation, GBIF-eDNA)"
   ),
   align = "v",
   label_x = 0,   # left align labels (0 = far left, 1 = far right)
@@ -2953,6 +2953,8 @@ r_df <- as.data.frame(r_layer, xy = TRUE) %>%
            y > 55.1 & y < 55.6))
 
 colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_SB_visual <- r_df
 
 # plot
 semibalanus_visual_current_plot_TSS <- ggplot() +
@@ -2961,8 +2963,10 @@ semibalanus_visual_current_plot_TSS <- ggplot() +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
-  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
-  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
   coord_sf(
     xlim = c(-8, 3),
     ylim = c(49.7, 61),
@@ -3031,6 +3035,8 @@ r_df <- as.data.frame(r_layer, xy = TRUE) %>%
            y > 55.1 & y < 55.6))
 
 colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_SB_combined <- r_df
 
 # plot
 semibalanus_combined_current_plot_TSS <- ggplot() +
@@ -3039,8 +3045,10 @@ semibalanus_combined_current_plot_TSS <- ggplot() +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
-  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
-  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
   labs(fill = NULL) + 
   coord_sf(
     xlim = c(-8, 3),
@@ -3108,6 +3116,8 @@ r_df <- as.data.frame(r_layer, xy = TRUE) %>%
            y > 55.1 & y < 55.6))
 
 colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_CM_visual <- r_df
 
 # plot
 chthamalus_visual_current_plot_TSS <- ggplot() +
@@ -3116,8 +3126,10 @@ chthamalus_visual_current_plot_TSS <- ggplot() +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
-  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
-  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
   labs(fill = NULL) + 
   coord_sf(
        xlim = c(-8, 3),
@@ -3185,6 +3197,8 @@ r_df <- as.data.frame(r_layer, xy = TRUE) %>%
            y > 55.1 & y < 55.6))
 
 colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_CM_combined <- r_df
 
 #plot
 chthamalus_combined_current_plot_TSS <- ggplot() +
@@ -3193,8 +3207,10 @@ chthamalus_combined_current_plot_TSS <- ggplot() +
   geom_sf(data = other_maps, fill = "white", color = "grey92") +
   geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
   
-  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability)) +
-  scale_fill_viridis_c(option = "viridis", na.value = "transparent") +
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
   labs(fill = NULL) +   # 🚨 remove legend title
   coord_sf(
         xlim = c(-8, 3),
@@ -3219,7 +3235,62 @@ chthamalus_combined_current_plot_TSS <- ggplot() +
 chthamalus_combined_current_plot_TSS
 ```
 
-#### Joint plot
+#### Difference maps
+
+```{r}
+#| label: difference-current-sm
+
+#join the data together
+colnames(r_df_SB_visual) <- c("x", "y", "suitability_visual", "suitability_divide_visual")
+colnames(r_df_SB_combined) <- c("x", "y", "suitability_combined", "suitability_divide_combined")
+
+r_df_SB_diff <- left_join(r_df_SB_visual, r_df_SB_combined)
+r_df_SB_diff$diff <- r_df_SB_diff$suitability_divide_combined - r_df_SB_diff$suitability_divide_visual
+
+# map
+SB_diff_plot <- ggplot() +
+  
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df_SB_diff, aes(x = x, y = y, fill = diff)) +
+  
+  scale_fill_gradient2(
+    low = "red",      # negative values
+    mid = "white",    # 0
+    high = "blue",    # positive values
+    midpoint = 0,     # center the scale at 0
+    na.value = "transparent",
+    breaks = c(min(r_df_SB_diff$diff, na.rm = TRUE), 0, max(r_df_SB_diff$diff, na.rm = TRUE)),
+  labels = c("Loss", "No change", "Gain")
+  ) +
+  
+  labs(fill = NULL) +
+  coord_sf(
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),
+      barwidth  = unit(0.02, "npc")
+    )
+  ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+SB_diff_plot
+```
+
+#### Joint maps
 
 Let's plot all our current projections together into one plot.
 
@@ -3230,7 +3301,7 @@ current_projections_plot <- cowplot::plot_grid(
   semibalanus_visual_current_plot_TSS,
   semibalanus_combined_current_plot_TSS,
   chthamalus_visual_current_plot_TSS,
-  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("(a) Citizen-only (SB)", "(b) Citizen-eDNA (SB)", "(c) Citizen-only (CM)", "(d) Citizen-eDNA (CM)"), align = "hv", label_fontface = "bold"
+  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("(a) GBIF-only (SB)", "(b) GBIF-eDNA (SB)", "(c) GBIF-only (CM)", "(d) GBIF-eDNA (CM)"), align = "hv", label_fontface = "bold"
 )
 
 current_projections_plot
@@ -3465,4 +3536,370 @@ gg_chthamalus_combined = bm_PlotRangeSize(
   do.plot = TRUE,
   row.names = c("Species", "Dataset", "Run", "Algo")
 )
+```
+
+### Plots for write-up
+
+Now let's make our final comparison plots for the write-up. These mainly consist of boxpots.
+
+#### Evaluation plots
+
+```{r}
+#| label: read-in-evals
+
+#semibalanus
+
+eval.semi.bal.individual.visual <- read.csv("Data/Processed_Data/Semi.bal/Individual-Visual/Evaluations_All.csv", row.names = 1)
+eval.semi.bal.individual.visual$model_type = "individual_algo"
+eval.semi.bal.individual.visual$dataset = "GBIF-only"
+eval.semi.bal.individual.visual$species = "Semibalanus balanoides"
+
+eval.semi.bal.ensemble.visual <- read.csv("Data/Processed_Data/Semi.bal/Ensemble-Visual/Evaluations_All.csv", row.names = 1)
+eval.semi.bal.ensemble.visual$model_type = "ensemble"
+eval.semi.bal.ensemble.visual$dataset = "GBIF-only"
+eval.semi.bal.ensemble.visual$species = "Semibalanus balanoides"
+
+eval.semi.bal.individual.combined <- read.csv("Data/Processed_Data/Semi.bal/Individual-Combined/Evaluations_All.csv", row.names = 1)
+eval.semi.bal.individual.combined$model_type = "individual_algo"
+eval.semi.bal.individual.combined$dataset = "GBIF-eDNA"
+eval.semi.bal.individual.combined$species = "Semibalanus balanoides"
+
+eval.semi.bal.ensemble.combined <- read.csv("Data/Processed_Data/Semi.bal/Ensemble-Combined/Evaluations_All.csv", row.names = 1)
+eval.semi.bal.ensemble.combined$model_type = "ensemble"
+eval.semi.bal.ensemble.combined$dataset = "GBIF-eDNA"
+eval.semi.bal.ensemble.combined$species = "Semibalanus balanoides"
+
+# chthamalus
+
+eval.chth.mon.individual.visual <- read.csv("Data/Processed_Data/Chtham.mont/Individual-Visual/Evaluations_All.csv", row.names = 1)
+eval.chth.mon.individual.visual$model_type = "individual_algo"
+eval.chth.mon.individual.visual$dataset = "GBIF-only"
+eval.chth.mon.individual.visual$species = "Chthamalus montagui"
+
+eval.chth.mon.ensemble.visual <- read.csv("Data/Processed_Data/Chtham.mont/Ensemble-Visual/Evaluations_All.csv", row.names = 1)
+eval.chth.mon.ensemble.visual$model_type = "ensemble"
+eval.chth.mon.ensemble.visual$dataset = "GBIF-only"
+eval.chth.mon.ensemble.visual$species = "Chthamalus montagui"
+
+eval.chth.mon.individual.combined <- read.csv("Data/Processed_Data/Chtham.mont/Individual-Combined/Evaluations_All.csv", row.names = 1)
+eval.chth.mon.individual.combined$model_type = "individual_algo"
+eval.chth.mon.individual.combined$dataset = "GBIF-eDNA"
+eval.chth.mon.individual.combined$species = "Chthamalus montagui"
+
+eval.chth.mon.ensemble.combined <- read.csv("Data/Processed_Data/Chtham.mont/Ensemble-Combined/Evaluations_All.csv", row.names = 1)
+eval.chth.mon.ensemble.combined$model_type = "ensemble"
+eval.chth.mon.ensemble.combined$dataset = "GBIF-eDNA"
+eval.chth.mon.ensemble.combined$species = "Chthamalus montagui"
+
+#join
+neworder <- c("Semibalanus balanoides","Chthamalus montagui")
+
+full_evals_ensemble<- rbind(eval.semi.bal.ensemble.visual,
+                    eval.semi.bal.ensemble.combined,
+                    eval.chth.mon.ensemble.visual,
+                    eval.chth.mon.ensemble.combined)
+
+full_evals_individual<- rbind(eval.semi.bal.individual.visual,
+                    eval.semi.bal.individual.combined,
+                    eval.chth.mon.individual.visual,
+                    eval.chth.mon.individual.combined)
+
+full_evals_individual <- arrange(transform(full_evals_individual,
+             species=factor(species,levels=neworder)),species)
+
+# filter for mean only in ensemble
+full_evals_ensemble_mean <- full_evals_ensemble %>% filter(algo == "EMmean")
+```
+
+Let's compare the datasets acros the evaluation metrics.
+
+```{r}
+#| label: set-colour-boxplot
+
+GBIF_only_colour = "#FFD485"
+GBIF_eDNA_colour = "#70CBFF"
+```
+
+```{r}
+#| label: eval-boxplot-ensemble
+
+eval_boxplot_ensemble <- ggplot(full_evals_ensemble_mean, aes(x = metric.eval, y = evaluation, fill = dataset)) + 
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap(~factor(species, neworder)) +
+  scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  labs(x = "Metric", y = "Evaluation value", fill = "Dataset") +
+  theme(legend.position = "none")
+
+eval_boxplot_ensemble
+
+ggsave(eval_boxplot_ensemble, file = "Figures/eval_boxplot_ensemble.png", height = 5, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: eval-boxplot-individual
+
+eval_boxplot_individual<- ggplot(full_evals_individual, aes(x = metric.eval, y = evaluation, fill = dataset)) + 
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap(~factor(species, neworder)) +
+    scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  labs(x = "Metric", y = "Evaluation value", fill = "Dataset")
+
+eval_boxplot_individual
+
+ggsave(eval_boxplot_individual, file = "Figures/eval_boxplot_individual.png", height = 5, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: eval-plot-together
+
+eval_boxplot_together <- plot_grid(eval_boxplot_individual, eval_boxplot_ensemble, labels = c("a", "b"), ncol = 1, align = "hv")
+
+eval_boxplot_together
+
+ggsave(eval_boxplot_together, file = "Figures/eval_boxplot_together.png", height = 7, width = 7, dpi = 300)
+```
+
+```{r}
+#| label: plot-individual-models
+
+eval_boxplot_individual_models<- ggplot(full_evals_individual, aes(x = metric.eval, y = evaluation, fill = algo)) + 
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap(~factor(species, neworder)) +
+  labs(x = "Metric", y = "Evaluation value", fill = "Dataset")
+
+eval_boxplot_individual_models
+
+ggsave(eval_boxplot_individual_models, file = "Figures/eval_boxplot_individual_models.png", height = 5, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: plot-individual-models-and-data
+
+eval_boxplot_individual_models_data<- ggplot(full_evals_individual, aes(x = metric.eval, y = evaluation, fill = algo, colour = dataset)) + 
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap(~factor(species, neworder)) +
+  labs(x = "Metric", y = "Evaluation value", fill = "Algo")
+
+eval_boxplot_individual_models_data
+
+ggsave(eval_boxplot_individual_models_data, file = "Figures/eval_boxplot_individual_models_data.png", height = 5, width = 8, dpi = 300)
+
+```
+
+```{r}
+#| label: tss-plot-algo
+
+eval_boxplot_individual_models_data_TSS <- ggplot(
+  full_evals_individual %>% filter(metric.eval == "TSS"),
+  aes(x = algo, y = evaluation, fill = dataset)
+) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap( ~ factor(species, neworder)) +
+  labs(x = "Algorithm", y = "TSS", fill = "Dataset") +
+  scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  geom_hline(yintercept=0.4, linetype='dashed', col = 'red')
+
+eval_boxplot_individual_models_data_TSS
+```
+
+```{r}
+#| label: roc-plot-algo
+
+eval_boxplot_individual_models_data_ROC <- ggplot(
+  full_evals_individual %>% filter(metric.eval == "ROC"),
+  aes(x = algo, y = evaluation, fill = dataset)
+) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap( ~ factor(species, neworder)) +
+  labs(x = "Algorithm", y = "ROC", fill = "Dataset")+
+  scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  geom_hline(yintercept=0.7, linetype='dashed', col = 'red')
+
+eval_boxplot_individual_models_data_ROC
+```
+
+```{r}
+#| label: algo-plot-together
+
+eval_boxplot_together_algo <- plot_grid(eval_boxplot_individual_models_data_ROC, eval_boxplot_individual_models_data_TSS, labels = c("a", "b"), ncol = 1)
+
+eval_boxplot_together_algo
+
+ggsave(eval_boxplot_together_algo, file = "Figures/eval_boxplot_together_algo.png", height = 8, width = 8, dpi = 300)
+```
+
+Let's compare ensemble vs individual.
+
+```{r}
+#| label: merge-data-eval
+
+full_evals_individual_reduced <- full_evals_individual %>% select(c(full.name, evaluation, dataset, species, metric.eval, model_type))
+
+full_evals_ensemble_mean <- full_evals_ensemble_mean %>% select(c(full.name, evaluation, dataset, species, metric.eval, model_type))
+
+eval_reduced_joined <- rbind(full_evals_individual_reduced, full_evals_ensemble_mean)
+
+#summary data
+
+summary_eval <- eval_reduced_joined %>% 
+  group_by(dataset, model_type, metric.eval,species) %>% 
+  summarise(mean = mean(evaluation),
+            se = sd(evaluation)/sqrt(n()))
+
+summary_eval
+```
+
+```{r}
+#| label: tss-plot-ensemble
+
+eval_boxplot_join_data_TSS <- ggplot(
+  eval_reduced_joined %>% filter(metric.eval == "TSS"),
+  aes(x = model_type, y = evaluation, fill = dataset)
+) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap( ~ factor(species, neworder)) +
+  labs(x = "Model type", y = "TSS", fill = "Dataset") +
+  scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  ))+
+  scale_x_discrete(labels = c("Ensemble", "Individual")) +
+  theme(legend.position = "none")
+
+eval_boxplot_join_data_TSS
+```
+
+```{r}
+#| label: roc-plot-ensemble
+
+eval_boxplot_join_data_ROC <- ggplot(
+  eval_reduced_joined %>% filter(metric.eval == "ROC"),
+  aes(x = model_type, y = evaluation, fill = dataset)
+) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap( ~ factor(species, neworder)) +
+  labs(x = "Model type", y = "ROC", fill = "Dataset") +
+  scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  scale_x_discrete(labels = c("Ensemble", "Individual"))
+
+eval_boxplot_join_data_ROC
+```
+
+```{r}
+#| label: both-models-plot-together
+
+eval_boxplot_together_both <- plot_grid(eval_boxplot_join_data_ROC, eval_boxplot_join_data_TSS, labels = c("a", "b"), ncol = 1, align = "hv")
+
+eval_boxplot_together_both
+
+ggsave(eval_boxplot_together_both, file = "Figures/eval_boxplot_together_both.png", height = 8, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: tss-plot-ensemble-mean-se
+
+mean_range_plot_mods_TSS <- ggplot(
+  summary_eval %>%
+    filter(metric.eval == "TSS") %>%
+    mutate(dataset = factor(
+      dataset, levels = c("GBIF-only", "GBIF-eDNA")
+    )),
+  aes(x = model_type, y = mean, colour = dataset)
+) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se),
+                  size = 1.5,
+                  position = position_dodge(width = 0.4)) +   # dodge by dataset
+  labs(x = "Model type", y = "TSS", colour = "Dataset") +
+  facet_wrap( ~ factor(species, neworder)) +
+  scale_x_discrete(
+    limits = c("individual_algo", "ensemble"),
+    labels = c("Individual", "Ensemble")
+  ) +   # reorder x-axis
+  scale_colour_manual(
+    values = c("GBIF-only" = GBIF_only_colour, 
+               "GBIF-eDNA" = GBIF_eDNA_colour),
+    breaks = c("GBIF-only", "GBIF-eDNA")
+  ) +            # reorder datasets
+  theme_bw() +
+  theme(text = element_text(size = 13), legend.position = "none",
+        strip.text = element_text(face = "italic")) 
+
+mean_range_plot_mods_TSS
+```
+
+```{r}
+#| label: roc-plot-ensemble-mean-se
+
+mean_range_plot_mods_roc <- ggplot(
+  summary_eval %>%
+    filter(metric.eval == "ROC") %>%
+    mutate(dataset = factor(
+      dataset, levels = c("GBIF-only", "GBIF-eDNA")
+    )),
+  aes(x = model_type, y = mean, colour = dataset)
+) +
+  geom_pointrange(aes(ymin = mean - se, ymax = mean + se),
+                  size = 1.5,
+                  position = position_dodge(width = 0.4)) +   # dodge by dataset
+  labs(x = "Model type", y = "ROC", colour = "Dataset") +
+  facet_wrap( ~ factor(species, neworder)) +
+  scale_x_discrete(
+    limits = c("individual_algo", "ensemble"),
+    labels = c("Individual", "Ensemble")
+  ) +   # reorder x-axis
+  scale_colour_manual(
+    values = c("GBIF-only" = GBIF_only_colour, 
+               "GBIF-eDNA" = GBIF_eDNA_colour),
+    breaks = c("GBIF-only", "GBIF-eDNA")
+  ) +            # reorder datasets
+  theme_bw() +
+  theme(text = element_text(size = 13),
+        strip.text = element_text(face = "italic")) 
+
+mean_range_plot_mods_roc
+```
+
+```{r}
+#| label: join-plots-mean-se
+
+eval_boxplot_together_both_meanSE <- plot_grid(mean_range_plot_mods_roc, mean_range_plot_mods_TSS, labels = c("a", "b"), ncol = 1, align = "hv")
+
+eval_boxplot_together_both_meanSE
+
+ggsave(eval_boxplot_together_both_meanSE, file = "Figures/eval_boxplot_together_both_meanSE.png", height = 9, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: reduced-summary
+
+summary_eval2 <- eval_reduced_joined %>% 
+  group_by(dataset, model_type, metric.eval) %>% 
+  summarise(mean = mean(evaluation),
+            se = sd(evaluation)/sqrt(n()))
+
+summary_eval2
+
 ```
