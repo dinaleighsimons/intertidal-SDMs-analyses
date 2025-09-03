@@ -3247,6 +3247,8 @@ colnames(r_df_SB_combined) <- c("x", "y", "suitability_combined", "suitability_d
 r_df_SB_diff <- left_join(r_df_SB_visual, r_df_SB_combined)
 r_df_SB_diff$diff <- r_df_SB_diff$suitability_divide_combined - r_df_SB_diff$suitability_divide_visual
 
+mean(r_df_SB_diff$diff)
+
 # map
 SB_diff_plot <- ggplot() +
   
@@ -3290,6 +3292,61 @@ SB_diff_plot <- ggplot() +
 SB_diff_plot
 ```
 
+```{r}
+#| label: difference-current-cm
+
+#join the data together
+colnames(r_df_CM_visual) <- c("x", "y", "suitability_visual", "suitability_divide_visual")
+colnames(r_df_CM_combined) <- c("x", "y", "suitability_combined", "suitability_divide_combined")
+
+r_df_CM_diff <- left_join(r_df_CM_visual, r_df_CM_combined)
+r_df_CM_diff$diff <- r_df_CM_diff$suitability_divide_combined - r_df_CM_diff$suitability_divide_visual
+
+mean(r_df_CM_diff$diff)
+
+# map
+CM_diff_plot <- ggplot() +
+  
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df_CM_diff, aes(x = x, y = y, fill = diff)) +
+  
+  scale_fill_gradient2(
+    low = "red",      # negative values
+    mid = "white",    # 0
+    high = "blue",    # positive values
+    midpoint = 0,     # center the scale at 0
+    na.value = "transparent",
+    breaks = c(min(r_df_CM_diff$diff, na.rm = TRUE), 0, max(r_df_CM_diff$diff, na.rm = TRUE)),
+  labels = c("Loss", "No change", "Gain")
+  ) +
+  
+  labs(fill = NULL) +
+  coord_sf(
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),
+      barwidth  = unit(0.02, "npc")
+    )
+  ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+CM_diff_plot
+```
+
 #### Joint maps
 
 Let's plot all our current projections together into one plot.
@@ -3300,14 +3357,17 @@ Let's plot all our current projections together into one plot.
 current_projections_plot <- cowplot::plot_grid(
   semibalanus_visual_current_plot_TSS,
   semibalanus_combined_current_plot_TSS,
+  SB_diff_plot,
   chthamalus_visual_current_plot_TSS,
-  chthamalus_combined_current_plot_TSS, ncol = 2, labels = c("(a) GBIF-only (SB)", "(b) GBIF-eDNA (SB)", "(c) GBIF-only (CM)", "(d) GBIF-eDNA (CM)"), align = "hv", label_fontface = "bold"
+  chthamalus_combined_current_plot_TSS, 
+  CM_diff_plot,
+  ncol = 3, labels = c("(a) GBIF-only (SB)", "(b) GBIF-eDNA (SB)", "(c) Difference (SB)", "(d) GBIF-only (CM)", "(e) GBIF-eDNA (CM)", "(f) Difference (CM)"), align = "hv", label_fontface = "bold"
 )
 
 current_projections_plot
 
 # Save the plot
-ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 12, height = 14, dpi = 300)
+ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 15, height = 13, dpi = 300)
 ```
 
 ### Forecasting change
@@ -3901,5 +3961,4 @@ summary_eval2 <- eval_reduced_joined %>%
             se = sd(evaluation)/sqrt(n()))
 
 summary_eval2
-
 ```
