@@ -2432,6 +2432,12 @@ SB_assessment_plot
 ggsave(SB_assessment_plot, filename = "Figures/SB_assessment_plot.png", width = 12, height = 15, dpi = 300)
 ```
 
+#### Semibalanus response curve plots
+
+```{r}
+
+```
+
 #### Model 3 (Chthamalus - visual)
 
 ```{r}
@@ -3961,4 +3967,96 @@ summary_eval2 <- eval_reduced_joined %>%
             se = sd(evaluation)/sqrt(n()))
 
 summary_eval2
+```
+
+#### Variable importance plots
+
+```{r}
+#| label: read-in-evals
+
+#semibalanus
+
+var.semi.bal.individual.visual <- read.csv("Data/Processed_Data/Semi.bal/Individual-Visual/VariablesImportance_All.csv", row.names = 1)
+var.semi.bal.individual.visual$model_type = "individual_algo"
+var.semi.bal.individual.visual$dataset = "GBIF-only"
+var.semi.bal.individual.visual$species = "Semibalanus balanoides"
+
+var.semi.bal.ensemble.visual <- read.csv("Data/Processed_Data/Semi.bal/Ensemble-Visual/VariablesImportance_All.csv", row.names = 1)
+var.semi.bal.ensemble.visual$model_type = "ensemble"
+var.semi.bal.ensemble.visual$dataset = "GBIF-only"
+var.semi.bal.ensemble.visual$species = "Semibalanus balanoides"
+
+var.semi.bal.individual.combined <- read.csv("Data/Processed_Data/Semi.bal/Individual-Combined/VariablesImportance_All.csv", row.names = 1)
+var.semi.bal.individual.combined$model_type = "individual_algo"
+var.semi.bal.individual.combined$dataset = "GBIF-eDNA"
+var.semi.bal.individual.combined$species = "Semibalanus balanoides"
+
+var.semi.bal.ensemble.combined <- read.csv("Data/Processed_Data/Semi.bal/Ensemble-Combined/VariablesImportance_All.csv", row.names = 1)
+var.semi.bal.ensemble.combined$model_type = "ensemble"
+var.semi.bal.ensemble.combined$dataset = "GBIF-eDNA"
+var.semi.bal.ensemble.combined$species = "Semibalanus balanoides"
+
+# chthamalus
+
+var.chth.mon.individual.visual <- read.csv("Data/Processed_Data/Chtham.mont/Individual-Visual/VariablesImportance_All.csv", row.names = 1)
+var.chth.mon.individual.visual$model_type = "individual_algo"
+var.chth.mon.individual.visual$dataset = "GBIF-only"
+var.chth.mon.individual.visual$species = "Chthamalus montagui"
+
+var.chth.mon.ensemble.visual <- read.csv("Data/Processed_Data/Chtham.mont/Ensemble-Visual/VariablesImportance_All.csv", row.names = 1)
+var.chth.mon.ensemble.visual$model_type = "ensemble"
+var.chth.mon.ensemble.visual$dataset = "GBIF-only"
+var.chth.mon.ensemble.visual$species = "Chthamalus montagui"
+
+var.chth.mon.individual.combined <- read.csv("Data/Processed_Data/Chtham.mont/Individual-Combined/VariablesImportance_All.csv", row.names = 1)
+var.chth.mon.individual.combined$model_type = "individual_algo"
+var.chth.mon.individual.combined$dataset = "GBIF-eDNA"
+var.chth.mon.individual.combined$species = "Chthamalus montagui"
+
+var.chth.mon.ensemble.combined <- read.csv("Data/Processed_Data/Chtham.mont/Ensemble-Combined/VariablesImportance_All.csv", row.names = 1)
+var.chth.mon.ensemble.combined$model_type = "ensemble"
+var.chth.mon.ensemble.combined$dataset = "GBIF-eDNA"
+var.chth.mon.ensemble.combined$species = "Chthamalus montagui"
+
+#join
+neworder <- c("Semibalanus balanoides","Chthamalus montagui")
+
+full_vars_ensemble<- rbind(var.semi.bal.ensemble.visual,
+                    var.semi.bal.ensemble.combined,
+                    var.chth.mon.ensemble.visual,
+                    var.chth.mon.ensemble.combined)
+
+full_vars_individual<- rbind(var.semi.bal.individual.visual,
+                    var.semi.bal.individual.combined,
+                    var.chth.mon.individual.visual,
+                    var.chth.mon.individual.combined)
+
+full_vars_individual <- arrange(transform(full_vars_individual,
+             species=factor(species,levels=neworder)),species)
+
+# filter for mean only in ensemble
+full_vars_ensemble_mean <- full_vars_ensemble %>% filter(algo == "EMmean")
+```
+
+```{r}
+#| label: eval-boxplot-individual
+
+vars_boxplot_ensemble<- ggplot(full_vars_ensemble_mean  %>%
+    mutate(dataset = factor(
+      dataset, levels = c("GBIF-only", "GBIF-eDNA")
+    )), aes(x = expl.var, y = var.imp, fill = dataset)) + 
+  geom_boxplot() +
+  theme_bw() +
+  facet_wrap(~factor(species, neworder)) +
+    scale_fill_manual(values = c(
+    "GBIF-only" = GBIF_only_colour,
+    "GBIF-eDNA" = GBIF_eDNA_colour
+  )) +
+  labs(x = "Environmental variable", y = "Variable importance", fill = "Dataset")+
+  scale_x_discrete(labels = c("SST", "pH", "Wave fetch"))+
+  theme(strip.text = element_text(face = "italic"))
+
+vars_boxplot_ensemble
+
+ggsave(vars_boxplot_ensemble, file = "Figures/vars_boxplot_ensemble.png", height = 5, width = 8, dpi = 300)
 ```
