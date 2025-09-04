@@ -3972,7 +3972,7 @@ summary_eval2
 #### Variable importance plots
 
 ```{r}
-#| label: read-in-evals
+#| label: read-in-vars
 
 #semibalanus
 
@@ -4039,7 +4039,7 @@ full_vars_ensemble_mean <- full_vars_ensemble %>% filter(algo == "EMmean")
 ```
 
 ```{r}
-#| label: eval-boxplot-individual
+#| label: vars-boxplot-ensemble
 
 vars_boxplot_ensemble<- ggplot(full_vars_ensemble_mean  %>%
     mutate(dataset = factor(
@@ -4059,4 +4059,27 @@ vars_boxplot_ensemble<- ggplot(full_vars_ensemble_mean  %>%
 vars_boxplot_ensemble
 
 ggsave(vars_boxplot_ensemble, file = "Figures/vars_boxplot_ensemble.png", height = 5, width = 8, dpi = 300)
+```
+
+```{r}
+#| label: vars-boxplot-individual
+
+vars_boxplot_individual <- ggplot(
+  full_vars_individual %>%
+    mutate(dataset = factor(
+      dataset, levels = c("GBIF-only", "GBIF-eDNA")
+    )),
+  aes(x = expl.var, y = var.imp, fill = dataset)
+) +
+  geom_boxplot() +
+  theme_bw() +
+  facet_grid(algo ~ factor(species, neworder)) +
+  labs(x = "Environmental variable", y = "Variable importance", fill = "Dataset") +
+  scale_fill_manual(values = c("GBIF-only" = GBIF_only_colour, "GBIF-eDNA" = GBIF_eDNA_colour)) +
+  scale_x_discrete(labels = c("SST", "pH", "Wave fetch")) +
+  theme(strip.text = element_text(face = "italic"))
+
+vars_boxplot_individual
+
+ggsave(vars_boxplot_individual, file = "Figures/vars_boxplot_individual.png", height = 9, width = 7, dpi = 300)
 ```
