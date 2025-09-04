@@ -1961,6 +1961,13 @@ dev.off()
 
 Time to run our models!
 
+```{r}
+#| label: set-thresholds
+
+TSS_thres <- 0.35
+ROC_thres <- 0.65
+```
+
 #### Model 1 (Semibalanus - visual)
 
 ```{r}
@@ -2089,7 +2096,7 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.7),
+  metric.select.thresh = c(TSS_thres, ROC_thres),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2307,7 +2314,7 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.7),
+  metric.select.thresh = c(TSS_thres, ROC_thres),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2420,7 +2427,7 @@ SB_assessment_plot <- cowplot::plot_grid(
              "f) Algorithms (Evaluation, GBIF-eDNA)"), 
   align = "v",
   label_x = 0,   # left align labels (0 = far left, 1 = far right)
-  label_y = 1.01,   # push labels to the very top
+  label_y = 1,   # push labels to the very top
   hjust = 0,     # left-justify text relative to x-position
   vjust = 1,      # align with top edge
   label_size = 10 
@@ -2564,7 +2571,7 @@ myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.7),
+  metric.select.thresh = c(TSS_thres, ROC_thres),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2782,7 +2789,7 @@ myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   em.by = 'all',
   em.algo = c('EMmean', 'EMcv', 'EMci', 'EMca', 'EMwmean'),
   metric.select = c('TSS', 'ROC'),
-  metric.select.thresh = c(0.4, 0.7),
+  metric.select.thresh = c(TSS_thres, ROC_thres),
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
@@ -2897,7 +2904,7 @@ CM_assessment_plot <- cowplot::plot_grid(
   ),
   align = "v",
   label_x = 0,   # left align labels (0 = far left, 1 = far right)
-  label_y = 1.01,   # push labels to the very top
+  label_y = 1,   # push labels to the very top
   hjust = 0,     # left-justify text relative to x-position
   vjust = 1,      # align with top edge
   label_size = 10 
