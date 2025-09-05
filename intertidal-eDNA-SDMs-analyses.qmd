@@ -3272,9 +3272,9 @@ SB_diff_plot <- ggplot() +
   geom_tile(data = r_df_SB_diff, aes(x = x, y = y, fill = diff)) +
   
   scale_fill_gradient2(
-    low = "red",      # negative values
+    low = "#F8333C",      # negative values
     mid = "white",    # 0
-    high = "blue",    # positive values
+    high = "#44AF69",    # positive values
     midpoint = 0,     # center the scale at 0
     na.value = "transparent",
     breaks = c(min(r_df_SB_diff$diff, na.rm = TRUE), 0, max(r_df_SB_diff$diff, na.rm = TRUE)),
@@ -3327,9 +3327,9 @@ CM_diff_plot <- ggplot() +
   geom_tile(data = r_df_CM_diff, aes(x = x, y = y, fill = diff)) +
   
   scale_fill_gradient2(
-    low = "red",      # negative values
+    low = "#F8333C",      # negative values
     mid = "white",    # 0
-    high = "blue",    # positive values
+    high = "#44AF69",    # positive values
     midpoint = 0,     # center the scale at 0
     na.value = "transparent",
     breaks = c(min(r_df_CM_diff$diff, na.rm = TRUE), 0, max(r_df_CM_diff$diff, na.rm = TRUE)),
@@ -3897,22 +3897,22 @@ SB_diff_plot_future <- ggplot() +
   geom_tile(data = SB_current_future_diff, aes(x = x, y = y, fill = diff)) +
   
   scale_fill_gradient2(
-    low = "red",      # negative values
+    low = "#F8333C",      # negative values
     mid = "white",    # 0
-    high = "blue",    # positive values
+    high = "#44AF69",    # positive values
     midpoint = 0,     # center the scale at 0
     na.value = "transparent",
     breaks = c(min(SB_current_future_diff$diff, na.rm = TRUE), 0, max(SB_current_future_diff$diff, na.rm = TRUE)),
   labels = c("Loss", "No change", "Gain")
   ) +
   
-  labs(fill = NULL) +
+  labs(fill = NULL, title = "Semibalanus balanoides") +
   coord_sf(
     xlim = c(-8, 3),
     ylim = c(49.7, 61),
     expand = FALSE
   ) +
-  theme_minimal(base_size = 14) +
+  theme_bw(base_size = 14) +
   guides(
     fill = guide_colorbar(
       barheight = unit(0.5, "npc"),
@@ -3924,7 +3924,8 @@ SB_diff_plot_future <- ggplot() +
     axis.title.x = element_blank(),
     axis.title.y = element_blank(),
     panel.background = element_rect(fill = "white", colour = NA),  
-    plot.background = element_rect(fill = "white", colour = NA)     
+    plot.background = element_rect(fill = "white", colour = NA),
+    plot.title = element_text(size = 12, face = "italic")
   )
 
 SB_diff_plot_future
@@ -3970,22 +3971,22 @@ CM_diff_plot_future <- ggplot() +
   geom_tile(data = CM_current_future_diff, aes(x = x, y = y, fill = diff)) +
   
   scale_fill_gradient2(
-    low = "red",      # negative values
+    low = "#F8333C",      # negative values
     mid = "white",    # 0
-    high = "blue",    # positive values
+    high = "#44AF69",    # positive values
     midpoint = 0,     # center the scale at 0
     na.value = "transparent",
     breaks = c(min(CM_current_future_diff$diff, na.rm = TRUE), 0, max(CM_current_future_diff$diff, na.rm = TRUE)),
   labels = c("Loss", "No change", "Gain")
   ) +
   
-  labs(fill = NULL) +
+  labs(fill = NULL, title = "Chthamalus montagui") +
   coord_sf(
     xlim = c(-8, 3),
     ylim = c(49.7, 61),
     expand = FALSE
   ) +
-  theme_minimal(base_size = 14) +
+  theme_bw(base_size = 14) +
   guides(
     fill = guide_colorbar(
       barheight = unit(0.5, "npc"),
@@ -3997,7 +3998,8 @@ CM_diff_plot_future <- ggplot() +
     axis.title.x = element_blank(),
     axis.title.y = element_blank(),
     panel.background = element_rect(fill = "white", colour = NA),  
-    plot.background = element_rect(fill = "white", colour = NA)     
+    plot.background = element_rect(fill = "white", colour = NA),
+    plot.title = element_text(size = 12, face = "italic")  
   )
 
 CM_diff_plot_future
@@ -4011,7 +4013,7 @@ CM_diff_plot_future
 future_projections_plot <- cowplot::plot_grid(
   SB_diff_plot_future,
   CM_diff_plot_future,
-  ncol = 2, labels = c("a) Semibalanus balanoides", "b) Chthamalus montagui"), align = "hv", label_fontface = "italic"
+  ncol = 2, align = "hv", label_fontface = "italic"
 )
 
 future_projections_plot
@@ -4024,6 +4026,9 @@ ggsave(future_projections_plot, filename = "Figures/future_projections_plot.png"
 
 ```{r}
 #| label: lat-bin-data
+
+future_colour = "#FCAB10"
+current_colour = "#2B9EB3"
 
 #SB
 
@@ -4040,10 +4045,13 @@ SB_long <- SB_current_future_diff %>%
 # 3. Compute mean suitability per latitude bin and scenario
 SB_summary <- SB_long %>%
   group_by(lat_bin, scenario) %>%
-  summarise(mean_suit = mean(suitability, na.rm = TRUE), .groups = "drop")
+  summarise(mean_suit = mean(suitability, na.rm = TRUE), 
+            se = sd(suitability)/sqrt(n()),
+            sd = sd(suitability))
 
 #add species
 SB_summary$species = "Semibalanus balanoides"
+SB_long$species = "Semibalanus balanoides"
 
 #CM
 
@@ -4060,11 +4068,14 @@ CM_long <- CM_current_future_diff %>%
 # 3. Compute mean suitability per latitude bin and scenario
 CM_summary <- CM_long %>%
   group_by(lat_bin, scenario) %>%
-  summarise(mean_suit = mean(suitability, na.rm = TRUE), .groups = "drop")
+  summarise(mean_suit = mean(suitability, na.rm = TRUE), 
+            se = sd(suitability)/sqrt(n()),
+            sd = sd(suitability))
 
 CM_summary$species = "Chthamalus montagui"
+CM_long$species = "Chthamalus montagui"# long
 
-#join
+long_both <- rbind(CM_long, SB_long)
 
 lat_bin_summary <- rbind(SB_summary, CM_summary)
 ```
@@ -4072,37 +4083,90 @@ lat_bin_summary <- rbind(SB_summary, CM_summary)
 ```{r}
 #| label: lat-bin-plot
 
-Lat_bin_line_plot <- ggplot(
-  lat_bin_summary,
-  aes(
-    x = lat_bin,
-    y = mean_suit,
-    color = scenario,
-    shape = species,
-    group = interaction(species, scenario)
-  )
-) + 
-  geom_line(size = 1) + 
-  geom_point(size = 3) + 
-  theme_minimal() + 
+# Make a dataset with start (current) and end (future) positions for each lat_bin & species
+arrow_data <- lat_bin_summary %>%
+  select(lat_bin, species, scenario, mean_suit) %>%
+  pivot_wider(names_from = scenario, values_from = mean_suit) %>%
+  # rename columns for convenience
+  rename(current = suitability_current,
+         future = suitability_future)
+
+arrow_data$future = arrow_data$future - 0.01
+
+# 1Ensure your main plotting dataset has species as a factor in the desired order
+lat_bin_summary <- lat_bin_summary %>%
+  mutate(species = factor(species, levels = c("Semibalanus balanoides", "Chthamalus montagui")))
+
+# 2 Ensure arrow data also respects the same factor levels
+arrow_data <- arrow_data %>%
+  mutate(species = factor(species, levels = c("Semibalanus balanoides", "Chthamalus montagui")))
+
+# 3 Plot
+Lat_bin_line_plot <- ggplot(lat_bin_summary,
+                            aes(
+                              x = mean_suit,
+                              y = lat_bin,
+                              color = scenario,
+                              shape = species
+                            )) + 
+  geom_segment(
+    data = arrow_data,
+    aes(x = current, xend = future, y = lat_bin, yend = lat_bin),
+    arrow = arrow(length = unit(0.2, "cm")),
+    color = "grey50"
+  ) +
+  geom_pointrange(aes(ymin = mean_suit - se, ymax = mean_suit + se),
+                  size = 1) +
+  facet_wrap(~species, ncol = 1) +   # facets follow factor order
+  theme_bw() +
+  theme(strip.text = element_text(face = "italic"),
+        legend.position = "right") +
   labs(
-    x = "Latitude range",
-    y = "Mean suitability score",
+    x = "Suitability score",
+    y = "Latitude range",
     color = "Climate scenario",
     shape = "Species"
   ) +
   scale_color_manual(
     name = "Climate scenario",
-    values = c("suitability_current" = "blue",
-               "suitability_future"  = "red"),
+    values = c("suitability_current" = current_colour,
+               "suitability_future"  = future_colour),
     labels = c("suitability_current" = "Current",
                "suitability_future"  = "Future (2100)")
   )
 
-Lat_bin_line_plot
+
+
 
 # Save the plot
-ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.png", width = 8, height = 5, dpi = 300)
+ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.jpeg", width = 8, height = 5, dpi = 300)
+```
+
+```{r}
+#| label: comp-future-plot
+
+# top row: 2 plots side by side
+top_row <- plot_grid(
+  SB_diff_plot_future,
+  CM_diff_plot_future,
+  ncol = 1,
+  labels = c("a", "b"),
+  align = "hv"
+)
+
+# bottom row: 1 plot spanning both columns
+forecast_plot <- plot_grid(
+  top_row,
+  Lat_bin_line_plot,
+  ncol = 2,
+  labels = c("", "c"),   # leave top row labels intact, label only bottom plot
+  rel_widths = c(1, 1.5)# adjust if you want the line plot taller/shorter
+)
+
+forecast_plot
+                           
+# Save the plot
+ggsave(forecast_plot, filename = "Figures/forecast_plot.jpeg", width =10, height = 8, dpi = 300)
 ```
 
 ### Plots for write-up
