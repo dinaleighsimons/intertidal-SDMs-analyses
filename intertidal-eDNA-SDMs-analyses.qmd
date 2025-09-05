@@ -3404,41 +3404,103 @@ myBiomodEMProjFuture_semibalanus_visual <- BIOMOD_EnsembleForecasting(
 
 myBiomodEMProjFuture_semibalanus_visual
 plot(myBiomodEMProjFuture_semibalanus_visual)
+
+# visualise
+future_semibalanus_visual <- get_predictions(myBiomodEMProjFuture_semibalanus_visual) # returns a rasterLayer
+plot(future_semibalanus_visual)
+
+# after rocky mask
+future_semibalanus_visual_masked <- mask(future_semibalanus_visual, expanded_rock)
+plot(future_semibalanus_visual_masked)
+```
+
+```{r}
+#| label: forecast-model-semibalanus-visual-EM-better-plot
+
+# Choose the first layer
+r_layer <- future_semibalanus_visual_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
+colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_SM_visual_future <- r_df
+
+#plot
+semibalanus_visual_future_plot <- ggplot() +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
+  labs(fill = NULL) +   # remove legend title
+  coord_sf(
+        xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plot height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+semibalanus_visual_future_plot
 ```
 
 ```{r}
 #| label: compare-range-sizes_semibalanus-visual
+#| eval: false
+#| include: false
 
 # Project onto future conditions
-myBiomodProjectionFuture_semibalanus_visual <- BIOMOD_Projection(
-  bm.mod = myBiomodModelOut_semibalanus_visual,
-  proj.name = 'Future.single.semibalanus.visual',
-  new.env = enviro_vars_future,
-  models.chosen = 'all',
-  metric.binary = 'TSS',
-  build.clamping.mask = TRUE
-)
+#myBiomodProjectionFuture_semibalanus_visual <- BIOMOD_Projection(
+  #bm.mod = myBiomodModelOut_semibalanus_visual,
+  #proj.name = 'Future.single.semibalanus.visual',
+  #new.env = enviro_vars_future,
+  #models.chosen = 'all',
+  #metric.binary = 'TSS',
+  #build.clamping.mask = TRUE
+#)
 
 # Load current and future binary projections
-CurrentProj_semibalanus_visual <- get_predictions(myBiomodProjectionFuture_semibalanus_visual, metric.binary = "TSS")
-FutureProj_semibalanus_visual <- get_predictions(myBiomodProjectionFuture_semibalanus_visual, metric.binary = "TSS")
+#CurrentProj_semibalanus_visual <- get_predictions(myBiomodProj_semibalanus_visual, metric.binary = "TSS")
+#FutureProj_semibalanus_visual <- get_predictions(myBiomodEMProjFuture_semibalanus_visual, metric.binary = "TSS")
 
 # Compute differences
-myBiomodRangeSize_semibalanus_visual <- BIOMOD_RangeSize(proj.current = CurrentProj_semibalanus_visual, proj.future = FutureProj_semibalanus_visual)
+#myBiomodRangeSize_semibalanus_visual <- BIOMOD_RangeSize(proj.current = proj_semibalanus_visual_masked, proj.future = future_semibalanus_visual_masked)
 
-myBiomodRangeSize_semibalanus_visual$Compt.By.Models
-plot(myBiomodRangeSize_semibalanus_visual$Diff.By.Pixel)
+#myBiomodRangeSize_semibalanus_visual$Compt.By.Models
+#plot(myBiomodRangeSize_semibalanus_visual$Diff.By.Pixel)
 
 # Represent main results
-gg_semibalanus_visual = bm_PlotRangeSize(
-  bm.range = myBiomodRangeSize_semibalanus_visual,
-  do.count = TRUE,
-  do.perc = TRUE,
-  do.maps = TRUE,
-  do.mean = TRUE,
-  do.plot = TRUE,
-  row.names = c("Species", "Dataset", "Run", "Algo")
-)
+#gg_semibalanus_visual = bm_PlotRangeSize(
+  #bm.range = myBiomodRangeSize_semibalanus_visual,
+  #do.count = TRUE,
+  #do.perc = TRUE,
+  #do.maps = TRUE,
+  #do.mean = TRUE,
+  #do.plot = TRUE,
+  #row.names = c("Species", "Dataset", "Run", "Algo")
+#)
 ```
 
 #### Forecast 2 (Semibalanus - combined)
@@ -3460,43 +3522,104 @@ myBiomodEMProjFuture_semibalanus_combined <- BIOMOD_EnsembleForecasting(
 
 myBiomodEMProjFuture_semibalanus_combined
 plot(myBiomodEMProjFuture_semibalanus_combined)
+
+# visualise
+future_semibalanus_combined <- get_predictions(myBiomodEMProjFuture_semibalanus_combined) # returns a rasterLayer
+plot(future_semibalanus_combined)
+
+# after rocky mask
+future_semibalanus_combined_masked <- mask(future_semibalanus_combined, expanded_rock)
+plot(future_semibalanus_combined_masked)
+```
+
+```{r}
+
+# Choose the first layer
+r_layer <- future_semibalanus_combined_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
+colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_future_SB_combined_masked <- r_df
+
+#plot
+semibalanus_combined_future_plot <- ggplot() +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
+  labs(fill = NULL) +   # remove legend title
+  coord_sf(
+        xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plot height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+semibalanus_combined_future_plot
 ```
 
 ```{r}
 #| label: compare-range-sizes_semibalanus-combined
+#| eval: false
+#| include: false
 
 # Project onto future conditions
-myBiomodProjectionFuture_semibalanus_combined <- BIOMOD_Projection(
-  bm.mod = myBiomodModelOut_semibalanus_combined,
-  proj.name = 'Future.single.semibalanus.combined',
-  new.env = enviro_vars_future,
-  models.chosen = 'all',
-  metric.binary = 'TSS',
-  build.clamping.mask = TRUE
-)
+#myBiomodProjectionFuture_semibalanus_combined <- BIOMOD_Projection(
+  #bm.mod = myBiomodModelOut_semibalanus_combined,
+  #proj.name = 'Future.single.semibalanus.combined',
+  #new.env = enviro_vars_future,
+  #models.chosen = 'all',
+  #metric.binary = 'TSS',
+  #build.clamping.mask = TRUE
+#)
 
 # Load current and future binary projections
-CurrentProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
-                                                    metric.binary = "TSS")
-FutureProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
-                                                   metric.binary = "TSS")
+#CurrentProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
+                                                    #metric.binary = "TSS")
+#FutureProj_semibalanus_combined <- get_predictions(myBiomodProjectionFuture_semibalanus_combined,
+                                                   #metric.binary = "TSS")
 
 # Compute differences
-myBiomodRangeSize_semibalanus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_semibalanus_combined, proj.future = FutureProj_semibalanus_combined)
+#myBiomodRangeSize_semibalanus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_semibalanus_combined, proj.future = FutureProj_semibalanus_combined)
 
-myBiomodRangeSize_semibalanus_combined$Compt.By.Models
-plot(myBiomodRangeSize_semibalanus_combined$Diff.By.Pixel)
+#myBiomodRangeSize_semibalanus_combined$Compt.By.Models
+#plot(myBiomodRangeSize_semibalanus_combined$Diff.By.Pixel)
 
 # Represent main results
-gg_semibalanus_combined = bm_PlotRangeSize(
-  bm.range = myBiomodRangeSize_semibalanus_combined,
-  do.count = TRUE,
-  do.perc = TRUE,
-  do.maps = TRUE,
-  do.mean = TRUE,
-  do.plot = TRUE,
-  row.names = c("Species", "Dataset", "Run", "Algo")
-)
+#gg_semibalanus_combined = bm_PlotRangeSize(
+  #bm.range = myBiomodRangeSize_semibalanus_combined,
+  #do.count = TRUE,
+  #do.perc = TRUE,
+  #do.maps = TRUE,
+  #do.mean = TRUE,
+  #do.plot = TRUE,
+  #row.names = c("Species", "Dataset", "Run", "Algo")
+#)
 ```
 
 #### Forecast 3 (Chthamalus - visual)
@@ -3518,41 +3641,101 @@ myBiomodEMProjFuture_chthamalus_visual<- BIOMOD_EnsembleForecasting(
 
 myBiomodEMProjFuture_chthamalus_visual
 plot(myBiomodEMProjFuture_chthamalus_visual)
+
+# visualise
+future_chthamalus_visual <- get_predictions(myBiomodEMProjFuture_chthamalus_visual) # returns a rasterLayer
+plot(future_chthamalus_visual)
+
+# after rocky mask
+future_chthamalus_visual_masked <- mask(future_chthamalus_visual, expanded_rock)
+plot(future_chthamalus_visual_masked)
+```
+
+```{r}
+# Choose the first layer
+r_layer <- future_chthamalus_visual_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
+colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_future_CM_visual_masked <- r_df
+
+#plot
+chthamalus_visual_future_plot <- ggplot() +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
+  labs(fill = NULL) +   # remove legend title
+  coord_sf(
+        xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plot height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+chthamalus_visual_future_plot
 ```
 
 ```{r}
 #| label: compare-range-sizes_chthamalus-visual
+#| eval: false
+#| include: false
 
 # Project onto future conditions
-myBiomodProjectionFuture_chthamalus_visual <- BIOMOD_Projection(
-  bm.mod = myBiomodModelOut_chthamalus_visual,
-  proj.name = 'Future.single.chthamalus.visual',
-  new.env = enviro_vars_future,
-  models.chosen = 'all',
-  metric.binary = 'TSS',
-  build.clamping.mask = TRUE
-)
+#myBiomodProjectionFuture_chthamalus_visual <- BIOMOD_Projection(
+  #bm.mod = myBiomodModelOut_chthamalus_visual,
+  #proj.name = 'Future.single.chthamalus.visual',
+  #new.env = enviro_vars_future,
+  #models.chosen = 'all',
+  #metric.binary = 'TSS',
+  #build.clamping.mask = TRUE
+#)
 
 # Load current and future binary projections
-CurrentProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
-FutureProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
+#CurrentProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
+#FutureProj_chthamalus_visual <- get_predictions(myBiomodProjectionFuture_chthamalus_visual, metric.binary = "TSS")
 
 # Compute differences
-myBiomodRangeSize_chthamalus_visual <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_visual, proj.future = FutureProj_chthamalus_visual)
+#myBiomodRangeSize_chthamalus_visual <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_visual, proj.future = FutureProj_chthamalus_visual)
 
-myBiomodRangeSize_chthamalus_visual$Compt.By.Models
-plot(myBiomodRangeSize_chthamalus_visual$Diff.By.Pixel)
+#myBiomodRangeSize_chthamalus_visual$Compt.By.Models
+#plot(myBiomodRangeSize_chthamalus_visual$Diff.By.Pixel)
 
 # Represent main results
-gg_chthamalus_visual = bm_PlotRangeSize(
-  bm.range = myBiomodRangeSize_chthamalus_visual,
-  do.count = TRUE,
-  do.perc = TRUE,
-  do.maps = TRUE,
-  do.mean = TRUE,
-  do.plot = TRUE,
-  row.names = c("Species", "Dataset", "Run", "Algo")
-)
+#gg_chthamalus_visual = bm_PlotRangeSize(
+  #bm.range = myBiomodRangeSize_chthamalus_visual,
+  #do.count = TRUE,
+  #do.perc = TRUE,
+  #do.maps = TRUE,
+  #do.mean = TRUE,
+  #do.plot = TRUE,
+  #row.names = c("Species", "Dataset", "Run", "Algo")
+#)
 ```
 
 #### Forecast 4 (Chthamalus - combined)
@@ -3574,41 +3757,352 @@ myBiomodEMProjFuture_chthamalus_combined<- BIOMOD_EnsembleForecasting(
 
 myBiomodEMProjFuture_chthamalus_combined
 plot(myBiomodEMProjFuture_chthamalus_combined)
+
+# visualise
+future_chthamalus_combined <- get_predictions(myBiomodEMProjFuture_chthamalus_combined) # returns a rasterLayer
+plot(future_chthamalus_combined)
+
+# after rocky mask
+future_chthamalus_combined_masked <- mask(future_chthamalus_combined, expanded_rock)
+plot(future_chthamalus_combined_masked)
+```
+
+```{r}
+
+# Choose the first layer
+r_layer <- future_chthamalus_combined_masked[[1]] 
+
+# Convert SpatRaster to data frame for ggplot
+r_df <- as.data.frame(r_layer, xy = TRUE) %>%
+  filter(!(x > -8.2 & x < -5.3 &
+           y > 53.9 & y < 55.2)) %>% # filter out Northern Ireland 
+  filter(!(x > -8.0 & x < -6.0 &
+           y > 55.1 & y < 55.6))
+
+colnames(r_df) <- c("x", "y", "suitability")
+r_df$suitability_divide = r_df$suitability / 1000
+r_df_future_CM_combined_masked <- r_df
+
+#plot
+chthamalus_combined_future_plot <- ggplot() +
+
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = r_df, aes(x = x, y = y, fill = suitability_divide)) +
+  scale_fill_viridis_c(option = "viridis", 
+                       na.value = "transparent", 
+                       limits = c(0, 1)) +
+  labs(fill = NULL) +   # remove legend title
+  coord_sf(
+        xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),   # ~80% of plot height
+      barwidth  = unit(0.02, "npc")   # slim vertical bar
+    )
+  ) +
+  theme(
+    legend.position = "right",        # show colorbar on the right
+    axis.title.x = element_blank(),   # remove x-axis title
+    axis.title.y = element_blank(),   # remove y-axis title
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+chthamalus_combined_future_plot
 ```
 
 ```{r}
 #| label: compare-range-sizes_chthamalus-combined
+#| eval: false
+#| include: false
 
 # Project onto future conditions
-myBiomodProjectionFuture_chthamalus_combined <- BIOMOD_Projection(
-  bm.mod = myBiomodModelOut_chthamalus_combined,
-  proj.name = 'Future.single.chthamalus.combined',
-  new.env = enviro_vars_future,
-  models.chosen = 'all',
-  metric.binary = 'TSS',
-  build.clamping.mask = TRUE
-)
+#myBiomodProjectionFuture_chthamalus_combined <- BIOMOD_Projection(
+  ##bm.mod = myBiomodModelOut_chthamalus_combined,
+  #proj.name = 'Future.single.chthamalus.combined',
+  #new.env = enviro_vars_future,
+  #models.chosen = 'all',
+  #metric.binary = 'TSS',
+  #build.clamping.mask = TRUE
+#)
 
 # Load current and future binary projections
-CurrentProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
-FutureProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
+#CurrentProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
+#FutureProj_chthamalus_combined <- get_predictions(myBiomodProjectionFuture_chthamalus_combined, metric.binary = "TSS")
 
 # Compute differences
-myBiomodRangeSize_chthamalus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_combined, proj.future = FutureProj_chthamalus_combined)
+#myBiomodRangeSize_chthamalus_combined <- BIOMOD_RangeSize(proj.current = CurrentProj_chthamalus_combined, proj.future = FutureProj_chthamalus_combined)
 
-myBiomodRangeSize_chthamalus_combined$Compt.By.Models
-plot(myBiomodRangeSize_chthamalus_combined$Diff.By.Pixel)
+#myBiomodRangeSize_chthamalus_combined$Compt.By.Models
+#plot(myBiomodRangeSize_chthamalus_combined$Diff.By.Pixel)
 
 # Represent main results
-gg_chthamalus_combined = bm_PlotRangeSize(
-  bm.range = myBiomodRangeSize_chthamalus_combined,
-  do.count = TRUE,
-  do.perc = TRUE,
-  do.maps = TRUE,
-  do.mean = TRUE,
-  do.plot = TRUE,
-  row.names = c("Species", "Dataset", "Run", "Algo")
+#gg_chthamalus_combined = bm_PlotRangeSize(
+  #bm.range = myBiomodRangeSize_chthamalus_combined,
+  #do.count = TRUE,
+  #do.perc = TRUE,
+  #do.maps = TRUE,
+  #do.mean = TRUE,
+  #do.plot = TRUE,
+  #row.names = c("Species", "Dataset", "Run", "Algo")
+#)
+```
+
+#### Difference maps
+
+```{r}
+#| label: current-future-diff-SB
+
+#join the data together (future)
+colnames(r_df_SM_visual_future) <- c("x", "y", "suitability_visual", "suitability_divide_visual")
+colnames(r_df_future_SB_combined_masked) <- c("x", "y", "suitability_combined", "suitability_divide_combined")
+
+r_df_SB_diff_future <- left_join(r_df_SM_visual_future, r_df_future_SB_combined_masked)
+r_df_SB_diff_future$diff <- r_df_SB_diff_future$suitability_divide_combined - r_df_SB_diff_future$suitability_divide_visual
+
+mean(r_df_SB_diff_future$diff)
+
+# now for current vs future
+SB_future_df <- r_df_future_SB_combined_masked %>% select(c(x,y,suitability_divide_combined))
+
+SB_current_df <- r_df_SB_combined %>% select(c(x, y , suitability_divide_combined))
+
+colnames(SB_future_df) <- c("x", "y", "suitability_future")
+colnames(SB_current_df) <- c("x", "y", "suitability_current")
+
+SB_current_future_diff <- left_join(SB_current_df, SB_future_df)
+SB_current_future_diff$diff <- SB_current_future_diff$suitability_future - SB_current_future_diff$suitability_current
+
+SB_current_future_diff
+mean(SB_current_future_diff$diff)
+```
+
+```{r}
+#| label: current-future-diff-SB-plot
+
+# map
+SB_diff_plot_future <- ggplot() +
+  
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = SB_current_future_diff, aes(x = x, y = y, fill = diff)) +
+  
+  scale_fill_gradient2(
+    low = "red",      # negative values
+    mid = "white",    # 0
+    high = "blue",    # positive values
+    midpoint = 0,     # center the scale at 0
+    na.value = "transparent",
+    breaks = c(min(SB_current_future_diff$diff, na.rm = TRUE), 0, max(SB_current_future_diff$diff, na.rm = TRUE)),
+  labels = c("Loss", "No change", "Gain")
+  ) +
+  
+  labs(fill = NULL) +
+  coord_sf(
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),
+      barwidth  = unit(0.02, "npc")
+    )
+  ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+SB_diff_plot_future
+```
+
+```{r}
+#| label: current-future-diff-CM
+
+#join the data together (future)
+colnames(r_df_future_CM_visual_masked) <- c("x", "y", "suitability_visual", "suitability_divide_visual")
+colnames(r_df_future_CM_combined_masked) <- c("x", "y", "suitability_combined", "suitability_divide_combined")
+
+r_df_CM_diff_future <- left_join(r_df_future_CM_visual_masked, r_df_future_CM_combined_masked)
+r_df_CM_diff_future$diff <- r_df_CM_diff_future$suitability_divide_combined - r_df_CM_diff_future$suitability_divide_visual
+
+mean(r_df_CM_diff_future$diff)
+
+# now for current vs future
+CM_future_df <- r_df_future_CM_combined_masked %>% select(c(x,y,suitability_divide_combined))
+
+CM_current_df <- r_df_CM_combined %>% select(c(x, y , suitability_divide_combined))
+
+colnames(CM_future_df) <- c("x", "y", "suitability_future")
+colnames(CM_current_df) <- c("x", "y", "suitability_current")
+
+CM_current_future_diff <- left_join(CM_current_df, CM_future_df)
+CM_current_future_diff$diff <- CM_current_future_diff$suitability_future - CM_current_future_diff$suitability_current
+
+CM_current_future_diff
+mean(CM_current_future_diff$diff)
+```
+
+```{r}
+#| label: current-future-diff-CM-plot
+
+# map
+CM_diff_plot_future <- ggplot() +
+  
+  geom_sf(data = uk, fill = "grey98", color = "lightgray") +
+  geom_sf(data = other_maps, fill = "white", color = "grey92") +
+  geom_sf(data = northern_ireland, fill = "white", color = "grey92") +
+  
+  geom_tile(data = CM_current_future_diff, aes(x = x, y = y, fill = diff)) +
+  
+  scale_fill_gradient2(
+    low = "red",      # negative values
+    mid = "white",    # 0
+    high = "blue",    # positive values
+    midpoint = 0,     # center the scale at 0
+    na.value = "transparent",
+    breaks = c(min(CM_current_future_diff$diff, na.rm = TRUE), 0, max(CM_current_future_diff$diff, na.rm = TRUE)),
+  labels = c("Loss", "No change", "Gain")
+  ) +
+  
+  labs(fill = NULL) +
+  coord_sf(
+    xlim = c(-8, 3),
+    ylim = c(49.7, 61),
+    expand = FALSE
+  ) +
+  theme_minimal(base_size = 14) +
+  guides(
+    fill = guide_colorbar(
+      barheight = unit(0.5, "npc"),
+      barwidth  = unit(0.02, "npc")
+    )
+  ) +
+  theme(
+    legend.position = "right",
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.background = element_rect(fill = "white", colour = NA),  
+    plot.background = element_rect(fill = "white", colour = NA)     
+  )
+
+CM_diff_plot_future
+```
+
+#### Joint maps
+
+```{r}
+#| label: future-protections-plot
+
+future_projections_plot <- cowplot::plot_grid(
+  SB_diff_plot_future,
+  CM_diff_plot_future,
+  ncol = 2, labels = c("a) Semibalanus balanoides", "b) Chthamalus montagui"), align = "hv", label_fontface = "italic"
 )
+
+future_projections_plot
+
+# Save the plot
+ggsave(future_projections_plot, filename = "Figures/future_projections_plot.png", width = 14, height = 11, dpi = 300)
+```
+
+#### Lat slice plot
+
+```{r}
+#| label: lat-bin-data
+
+#SB
+
+# 1. Bin latitude (y) into 5 equal ranges
+SB_current_future_diff <- SB_current_future_diff %>%
+  mutate(lat_bin = cut(y, breaks = 5))
+
+# 2. Reshape to long format for ggplot
+SB_long <- SB_current_future_diff %>%
+  pivot_longer(cols = starts_with("suitability"),
+               names_to = "scenario",
+               values_to = "suitability")
+
+# 3. Compute mean suitability per latitude bin and scenario
+SB_summary <- SB_long %>%
+  group_by(lat_bin, scenario) %>%
+  summarise(mean_suit = mean(suitability, na.rm = TRUE), .groups = "drop")
+
+#add species
+SB_summary$species = "Semibalanus balanoides"
+
+#CM
+
+# 1. Bin latitude (y) into 5 equal ranges
+CM_current_future_diff <- CM_current_future_diff %>%
+  mutate(lat_bin = cut(y, breaks = 5))
+
+# 2. Reshape to long format for ggplot
+CM_long <- CM_current_future_diff %>%
+  pivot_longer(cols = starts_with("suitability"),
+               names_to = "scenario",
+               values_to = "suitability")
+
+# 3. Compute mean suitability per latitude bin and scenario
+CM_summary <- CM_long %>%
+  group_by(lat_bin, scenario) %>%
+  summarise(mean_suit = mean(suitability, na.rm = TRUE), .groups = "drop")
+
+CM_summary$species = "Chthamalus montagui"
+
+#join
+
+lat_bin_summary <- rbind(SB_summary, CM_summary)
+```
+
+```{r}
+#| label: lat-bin-plot
+
+Lat_bin_line_plot <- ggplot(
+  lat_bin_summary,
+  aes(
+    x = lat_bin,
+    y = mean_suit,
+    color = scenario,
+    shape = species,
+    group = interaction(species, scenario)
+  )
+) + 
+  geom_line(size = 1) + 
+  geom_point(size = 3) + 
+  theme_minimal() + 
+  labs(
+    x = "Latitude range",
+    y = "Mean suitability score",
+    color = "Climate scenario",
+    shape = "Species"
+  ) +
+  scale_color_manual(
+    name = "Climate scenario",
+    values = c("suitability_current" = "blue",
+               "suitability_future"  = "red"),
+    labels = c("suitability_current" = "Current",
+               "suitability_future"  = "Future (2100)")
+  )
+
+Lat_bin_line_plot
+
+# Save the plot
+ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.png", width = 8, height = 5, dpi = 300)
 ```
 
 ### Plots for write-up
@@ -3684,7 +4178,7 @@ full_evals_individual <- arrange(transform(full_evals_individual,
 full_evals_ensemble_mean <- full_evals_ensemble %>% filter(algo == "EMmean")
 ```
 
-Let's compare the datasets acros the evaluation metrics.
+Let's compare the datasets across the evaluation metrics.
 
 ```{r}
 #| label: set-colour-boxplot
