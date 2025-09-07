@@ -180,7 +180,7 @@ This is to make sure the random elements in models start from the same point eve
 ```{r}
 #| label: set-seed
 
-set.seed(42) # life, the universe, and everything
+seed.val.set = 42 # life, the universe, and everything
 ```
 
 ## Occurrence data
@@ -1683,7 +1683,7 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)),
@@ -1702,7 +1702,8 @@ myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
   # Evaluation locations,
   eval.expl.var = presvals_semibalanus_corrected_marclim_PA,
   #filter.raster = TRUE #autofilter,
-  na.rm = FALSE
+  na.rm = FALSE,
+  seed.val = seed.val.set
 )
 
 summary(myBiomodData_semibalanus_visual)
@@ -1740,7 +1741,7 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
@@ -1757,8 +1758,10 @@ myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
   # Evaluation responses (0/1)
   eval.resp.xy = semibalanus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
-  eval.expl.var = presvals_semibalanus_corrected_marclim_PA
+  eval.expl.var = presvals_semibalanus_corrected_marclim_PA,
   #filter.raster = TRUE #autofilter
+  na.rm = FALSE,
+  seed.val = seed.val.set
 )
 
 summary(myBiomodData_semibalanus_combined)
@@ -1798,7 +1801,7 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
@@ -1815,8 +1818,10 @@ myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
   # Evaluation responses (0/1)
   eval.resp.xy = chthamalus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
-  eval.expl.var = presvals_chthamalus_corrected_marclim_PA
+  eval.expl.var = presvals_chthamalus_corrected_marclim_PA,
   #filter.raster = TRUE #autofilter
+  na.rm = FALSE,
+  seed.val = seed.val.set
 )
 
 myBiomodData_chthamalus_visual
@@ -1852,7 +1857,7 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
@@ -1869,8 +1874,10 @@ myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
   # Evaluation responses (0/1)
   eval.resp.xy = chthamalus_corrected_marclim_PA_df[, c("lon", "lat")],
   # Evaluation locations,
-  eval.expl.var = presvals_chthamalus_corrected_marclim_PA
+  eval.expl.var = presvals_chthamalus_corrected_marclim_PA,
   #filter.raster = TRUE #autofilter
+  na.rm = FALSE,
+  seed.val = seed.val.set
 )
 
 myBiomodData_chthamalus_combined
@@ -1900,7 +1907,7 @@ summary(myBiomodData_chthamalus_combined)
 ```{r}
 #| label: cross-val-semibalanus-visual
 
-set.seed(42)
+set.seed(seed.val.set)
 cv.sv <- bm_CrossValidation(bm.format = myBiomodData_semibalanus_visual,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1921,7 +1928,7 @@ dev.off()
 ```{r}
 #| label: cross-val-semibalanus-combined
 
-set.seed(42)
+set.seed(seed.val.set)
 cv.sc <- bm_CrossValidation(bm.format = myBiomodData_semibalanus_combined,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1942,7 +1949,7 @@ dev.off()
 ```{r}
 #| label: cross-val-chthamalus-visual
 
-set.seed(42)
+set.seed(seed.val.set)
 cv.cv <- bm_CrossValidation(bm.format = myBiomodData_chthamalus_visual,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1963,7 +1970,7 @@ dev.off()
 ```{r}
 #| label: cross-val-chthamalus-combined
 
-set.seed(42)
+set.seed(seed.val.set)
 cv.cc <- bm_CrossValidation(bm.format = myBiomodData_chthamalus_combined,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1997,7 +2004,7 @@ ROC_thres <- 0.65
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 # Model single models
 myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
@@ -2009,7 +2016,8 @@ myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
   CV.perc = 0.7, #percentage kept for calibration
   OPT.strategy = 'default',
   var.import = 2,
-  metric.eval = c('TSS', 'ROC')
+  metric.eval = c('TSS', 'ROC'),
+  seed.val = seed.val.set
 )
 
 # check which options can be altered
@@ -2113,7 +2121,7 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 # Model ensemble models
 myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
@@ -2126,7 +2134,8 @@ myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
-  EMwmean.decay = 'proportional'
+  EMwmean.decay = 'proportional',
+  seed.val = seed.val.set
 )
 
 myBiomodEM_semibalanus_visual
@@ -2221,7 +2230,7 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 # Model single models
 myBiomodModelOut_semibalanus_combined <- BIOMOD_Modeling(
@@ -2233,7 +2242,8 @@ myBiomodModelOut_semibalanus_combined <- BIOMOD_Modeling(
   CV.perc = 0.7,
   OPT.strategy = 'default',
   var.import = 2,
-  metric.eval = c('TSS', 'ROC')
+  metric.eval = c('TSS', 'ROC'),
+  seed.val = seed.val.set
 )
 
 get_options(myBiomodModelOut_semibalanus_combined)
@@ -2335,7 +2345,7 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
-set.seed(42)
+set.seed(seed.val.set)
 
 # Model ensemble models
 myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
@@ -2348,7 +2358,8 @@ myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
-  EMwmean.decay = 'proportional'
+  EMwmean.decay = 'proportional',
+  seed.val = seed.val.set
 )
 
 myBiomodEM_semibalanus_combined
@@ -2482,6 +2493,8 @@ ggsave(SB_assessment_plot, filename = "Figures/SB_assessment_plot.png", width = 
 #| echo: true
 #| results: hide
 
+set.seed(seed.val.set)
+
 # Model single models
 myBiomodModelOut_chthamalus_visual <- BIOMOD_Modeling(
   bm.format = myBiomodData_chthamalus_visual,
@@ -2492,7 +2505,8 @@ myBiomodModelOut_chthamalus_visual <- BIOMOD_Modeling(
   CV.perc = 0.7,
   OPT.strategy = 'default',
   var.import = 2,
-  metric.eval = c('TSS', 'ROC')
+  metric.eval = c('TSS', 'ROC'),
+  seed.val = seed.val.set
 )
 
 get_options(myBiomodModelOut_chthamalus_visual)
@@ -2594,6 +2608,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
+set.seed(seed.val.set)
+
 # Model ensemble models (takes around 30 mins)
 myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_chthamalus_visual,
@@ -2605,7 +2621,8 @@ myBiomodEM_chthamalus_visual <- BIOMOD_EnsembleModeling(
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
-  EMwmean.decay = 'proportional'
+  EMwmean.decay = 'proportional',
+  seed.val = seed.val.set
 )
 
 myBiomodEM_chthamalus_visual
@@ -2700,6 +2717,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
+set.seed(seed.val.set)
+
 # Model single models
 myBiomodModelOut_chthamalus_combined <- BIOMOD_Modeling(
   bm.format = myBiomodData_chthamalus_combined,
@@ -2710,7 +2729,8 @@ myBiomodModelOut_chthamalus_combined <- BIOMOD_Modeling(
   CV.perc = 0.7,
   OPT.strategy = 'default',
   var.import = 2,
-  metric.eval = c('TSS', 'ROC')
+  metric.eval = c('TSS', 'ROC'),
+  seed.val = seed.val.set
 )
 
 get_options(myBiomodModelOut_chthamalus_combined)
@@ -2812,6 +2832,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
+set.seed(seed.val.set)
+
 # Model ensemble models (takes around 30 mins)
 myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_chthamalus_combined,
@@ -2823,7 +2845,8 @@ myBiomodEM_chthamalus_combined <- BIOMOD_EnsembleModeling(
   metric.eval = c('TSS', 'ROC'),
   var.import = 2,
   EMci.alpha = 0.05,
-  EMwmean.decay = 'proportional'
+  EMwmean.decay = 'proportional',
+  seed.val = seed.val.set
 )
 
 myBiomodEM_chthamalus_combined
