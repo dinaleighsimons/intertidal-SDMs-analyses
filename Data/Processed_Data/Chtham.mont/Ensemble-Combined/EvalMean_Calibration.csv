@@ -1,7 +1,7 @@
 "","name","mean1","mean2","sd1","sd2"
-"1","Chthamalus.montagui_EMcaByROC_mergedData_mergedRun_mergedAlgo",0.971,0.824,NA,NA
-"2","Chthamalus.montagui_EMcaByTSS_mergedData_mergedRun_mergedAlgo",0.971,0.824,NA,NA
-"3","Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo",0.97,0.824,NA,NA
-"4","Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo",0.97,0.824,NA,NA
-"5","Chthamalus.montagui_EMwmeanByROC_mergedData_mergedRun_mergedAlgo",0.969,0.815,NA,NA
-"6","Chthamalus.montagui_EMwmeanByTSS_mergedData_mergedRun_mergedAlgo",0.968,0.796,NA,NA
+"1","Chthamalus.montagui_EMcaByROC_mergedData_mergedRun_mergedAlgo",0.981,0.87,NA,NA
+"2","Chthamalus.montagui_EMcaByTSS_mergedData_mergedRun_mergedAlgo",0.981,0.87,NA,NA
+"3","Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo",0.976,0.815,NA,NA
+"4","Chthamalus.montagui_EMmeanByTSS_mergedData_mergedRun_mergedAlgo",0.976,0.815,NA,NA
+"5","Chthamalus.montagui_EMwmeanByROC_mergedData_mergedRun_mergedAlgo",0.977,0.815,NA,NA
+"6","Chthamalus.montagui_EMwmeanByTSS_mergedData_mergedRun_mergedAlgo",0.978,0.833,NA,NA
