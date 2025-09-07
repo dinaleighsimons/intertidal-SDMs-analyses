@@ -173,6 +173,16 @@ g_legend<-function(a.gplot){
 }
 ```
 
+### Set seed
+
+This is to make sure the random elements in models start from the same point every time. This will make our results reproducible.
+
+```{r}
+#| label: set-seed
+
+set.seed(42) # life, the universe, and everything
+```
+
 ## Occurrence data
 
 ### Import paired eDNA and MarClim occurrences
