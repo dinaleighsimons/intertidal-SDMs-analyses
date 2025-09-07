@@ -175,7 +175,7 @@ g_legend<-function(a.gplot){
 
 ### Set seed
 
-This is to make sure the random elements in models start from the same point every time. This will make our results reproducible. This is also done before any randomised element such as before each model.
+This is to make sure the random elements in models start from the same point every time. This will make our results reproducible. This is also done before any randomized element such as before each model.
 
 ```{r}
 #| label: set-seed
