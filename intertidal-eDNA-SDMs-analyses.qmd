@@ -4101,7 +4101,7 @@ arrow_data <- lat_bin_summary %>%
   rename(current = suitability_current,
          future = suitability_future)
 
-arrow_data$future = arrow_data$future - 0.01
+arrow_data$future = arrow_data$future - 0.02
 
 # 1Ensure your main plotting dataset has species as a factor in the desired order
 lat_bin_summary <- lat_bin_summary %>%
@@ -4145,11 +4145,8 @@ Lat_bin_line_plot <- ggplot(lat_bin_summary,
                "suitability_future"  = "Future (2100)")
   )
 
-
-
-
 # Save the plot
-ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.jpeg", width = 8, height = 5, dpi = 300)
+ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.png", width = 8, height = 5, dpi = 300)
 ```
 
 ```{r}
@@ -4176,7 +4173,7 @@ forecast_plot <- plot_grid(
 forecast_plot
                            
 # Save the plot
-ggsave(forecast_plot, filename = "Figures/forecast_plot.jpeg", width =10, height = 8, dpi = 300)
+ggsave(forecast_plot, filename = "Figures/forecast_plot.png", width =10, height = 8, dpi = 300)
 ```
 
 ### Plots for write-up
