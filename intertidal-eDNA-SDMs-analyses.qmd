@@ -1683,6 +1683,8 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| echo: true
 #| results: hide
 
+set.seed(42)
+
 myBiomodData_semibalanus_visual <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)),
   # presence-only
@@ -1737,6 +1739,8 @@ Now let's put all our data elements into the `BIOMOD_FormatingData` function.
 #| label: format-data-bodmod2-semibalanus-combined
 #| echo: true
 #| results: hide
+
+set.seed(42)
 
 myBiomodData_semibalanus_combined <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
@@ -1794,6 +1798,8 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| echo: true
 #| results: hide
 
+set.seed(42)
+
 myBiomodData_chthamalus_visual <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
   # presence-only
@@ -1846,6 +1852,8 @@ pts_clean <- pts_with_vals[complete.cases(pts_with_vals), c("lon", "lat")]
 #| echo: true
 #| results: hide
 
+set.seed(42)
+
 myBiomodData_chthamalus_combined <- BIOMOD_FormatingData(
   resp.var = rep(1, nrow(pts_clean)) ,
   # presence-only
@@ -1892,6 +1900,7 @@ summary(myBiomodData_chthamalus_combined)
 ```{r}
 #| label: cross-val-semibalanus-visual
 
+set.seed(42)
 cv.sv <- bm_CrossValidation(bm.format = myBiomodData_semibalanus_visual,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1912,6 +1921,7 @@ dev.off()
 ```{r}
 #| label: cross-val-semibalanus-combined
 
+set.seed(42)
 cv.sc <- bm_CrossValidation(bm.format = myBiomodData_semibalanus_combined,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1932,6 +1942,7 @@ dev.off()
 ```{r}
 #| label: cross-val-chthamalus-visual
 
+set.seed(42)
 cv.cv <- bm_CrossValidation(bm.format = myBiomodData_chthamalus_visual,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1952,6 +1963,7 @@ dev.off()
 ```{r}
 #| label: cross-val-chthamalus-combined
 
+set.seed(42)
 cv.cc <- bm_CrossValidation(bm.format = myBiomodData_chthamalus_combined,
                             strategy = 'random',
                             nb.rep = 2,
@@ -1984,6 +1996,8 @@ ROC_thres <- 0.65
 #| label: run-model-semibalanus-visual-single
 #| echo: true
 #| results: hide
+
+set.seed(42)
 
 # Model single models
 myBiomodModelOut_semibalanus_visual <- BIOMOD_Modeling(
@@ -2099,6 +2113,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| echo: true
 #| results: hide
 
+set.seed(42)
+
 # Model ensemble models
 myBiomodEM_semibalanus_visual <- BIOMOD_EnsembleModeling(
   bm.mod = myBiomodModelOut_semibalanus_visual,
@@ -2204,6 +2220,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| label: run-model-semibalanus-combined-single
 #| echo: true
 #| results: hide
+
+set.seed(42)
 
 # Model single models
 myBiomodModelOut_semibalanus_combined <- BIOMOD_Modeling(
@@ -2316,6 +2334,8 @@ ggsave(plot, file = paste0(figure_path, "ResponseCurve_Bivariate_Median.png"), w
 #| label: run-model-semibalanus-combined-ensemble
 #| echo: true
 #| results: hide
+
+set.seed(42)
 
 # Model ensemble models
 myBiomodEM_semibalanus_combined <- BIOMOD_EnsembleModeling(
