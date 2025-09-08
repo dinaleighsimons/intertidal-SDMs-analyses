@@ -181,6 +181,8 @@ This is to make sure the random elements in models start from the same point eve
 #| label: set-seed
 
 seed.val.set = 42 # life, the universe, and everything
+
+options(biomod2.parallel = FALSE) # forces everything to run sequentially, so seeds behave more predictably
 ```
 
 ## Occurrence data
@@ -3959,7 +3961,9 @@ SB_diff_plot_future <- ggplot() +
   labels = c("Loss", "No change", "Gain")
   ) +
   
-  labs(fill = NULL, title = "Semibalanus balanoides") +
+  labs(fill = NULL#, 
+       #title = "Semibalanus balanoides"
+       ) +
   coord_sf(
     xlim = c(-8, 3),
     ylim = c(49.7, 61),
@@ -3978,7 +3982,7 @@ SB_diff_plot_future <- ggplot() +
     axis.title.y = element_blank(),
     panel.background = element_rect(fill = "white", colour = NA),  
     plot.background = element_rect(fill = "white", colour = NA),
-    plot.title = element_text(size = 12, face = "italic")
+    plot.title = element_text(size = 10, face = "italic")
   )
 
 SB_diff_plot_future
@@ -4033,7 +4037,9 @@ CM_diff_plot_future <- ggplot() +
   labels = c("Loss", "No change", "Gain")
   ) +
   
-  labs(fill = NULL, title = "Chthamalus montagui") +
+  labs(fill = NULL#, 
+       #title = "Chthamalus montagui"
+       ) +
   coord_sf(
     xlim = c(-8, 3),
     ylim = c(49.7, 61),
@@ -4052,7 +4058,7 @@ CM_diff_plot_future <- ggplot() +
     axis.title.y = element_blank(),
     panel.background = element_rect(fill = "white", colour = NA),  
     plot.background = element_rect(fill = "white", colour = NA),
-    plot.title = element_text(size = 12, face = "italic")  
+    plot.title = element_text(size = 10, face = "italic")  
   )
 
 CM_diff_plot_future
@@ -4136,15 +4142,16 @@ lat_bin_summary <- rbind(SB_summary, CM_summary)
 ```{r}
 #| label: lat-bin-plot
 
-# Make a dataset with start (current) and end (future) positions for each lat_bin & species
 arrow_data <- lat_bin_summary %>%
   select(lat_bin, species, scenario, mean_suit) %>%
   pivot_wider(names_from = scenario, values_from = mean_suit) %>%
-  # rename columns for convenience
-  rename(current = suitability_current,
-         future = suitability_future)
-
-arrow_data$future = arrow_data$future - 0.02
+  rename(
+    current = suitability_current,
+    future  = suitability_future
+  ) %>%
+  mutate(
+    future = if_else(future < current, future + 0.02, future - 0.02)
+  )
 
 # 1Ensure your main plotting dataset has species as a factor in the desired order
 lat_bin_summary <- lat_bin_summary %>%
@@ -4168,7 +4175,8 @@ Lat_bin_line_plot <- ggplot(lat_bin_summary,
     arrow = arrow(length = unit(0.2, "cm")),
     color = "grey50"
   ) +
-  geom_pointrange(aes(ymin = mean_suit - se, ymax = mean_suit + se),
+  geom_pointrange(aes(ymin = mean_suit, 
+                      ymax = mean_suit),
                   size = 1) +
   facet_wrap(~species, ncol = 1) +   # facets follow factor order
   theme_bw() +
@@ -4186,10 +4194,108 @@ Lat_bin_line_plot <- ggplot(lat_bin_summary,
                "suitability_future"  = future_colour),
     labels = c("suitability_current" = "Current",
                "suitability_future"  = "Future (2100)")
-  )
+  ) +
+  scale_y_discrete(
+    labels = c(
+      "(49.9,52]"   = "49.9 to 52°N",
+      "(52,54.2]"   = "52 to 54.2°N",
+      "(54.2,56.4]" = "54.2 to 56.4°N",
+      "(56.4,58.6]" = "56.4 to 58.6°N",
+      "(58.6,60.7]" = "58.6 to 60.7°N"
+    ))
+
+Lat_bin_line_plot
 
 # Save the plot
 ggsave(Lat_bin_line_plot, filename = "Figures/Lat_bin_line_plot.png", width = 8, height = 5, dpi = 300)
+```
+
+```{r}
+#| label: plot-seperately-for-better-layout
+
+Lat_bin_line_plot_SB <- ggplot(lat_bin_summary %>% 
+                                 filter(species == "Semibalanus balanoides"),
+                            aes(
+                              x = mean_suit,
+                              y = lat_bin,
+                              color = scenario
+                            )) + 
+  geom_segment(
+    data = arrow_data %>% filter(species == "Semibalanus balanoides"),
+    aes(x = current, xend = future, y = lat_bin, yend = lat_bin),
+    arrow = arrow(length = unit(0.2, "cm")),
+    color = "grey50"
+  ) +
+  geom_pointrange(aes(ymin = mean_suit, 
+                      ymax = mean_suit),
+                  size = 1) +
+  theme_bw() +
+  theme(strip.text = element_text(face = "italic"),
+        legend.position = "right") +
+  labs(
+    x = "Suitability score",
+    y = "Latitude range",
+    color = "Climate scenario"
+  ) +
+  scale_color_manual(
+    name = "Climate scenario",
+    values = c("suitability_current" = current_colour,
+               "suitability_future"  = future_colour),
+    labels = c("suitability_current" = "Current",
+               "suitability_future"  = "Future (2100)")
+  ) +
+  scale_y_discrete(
+    labels = c(
+      "(49.9,52]"   = "49.9 to 52°N",
+      "(52,54.2]"   = "52 to 54.2°N",
+      "(54.2,56.4]" = "54.2 to 56.4°N",
+      "(56.4,58.6]" = "56.4 to 58.6°N",
+      "(58.6,60.7]" = "58.6 to 60.7°N"
+    ))+ xlim(0,1)
+
+Lat_bin_line_plot_SB
+
+Lat_bin_line_plot_CM <- ggplot(lat_bin_summary %>% 
+                                 filter(species == "Chthamalus montagui"),
+                            aes(
+                              x = mean_suit,
+                              y = lat_bin,
+                              color = scenario
+                            )) + 
+  geom_segment(
+    data = arrow_data %>% filter(species == "Chthamalus montagui"),
+    aes(x = current, xend = future, y = lat_bin, yend = lat_bin),
+    arrow = arrow(length = unit(0.2, "cm")),
+    color = "grey50"
+  ) +
+  geom_pointrange(aes(ymin = mean_suit, 
+                      ymax = mean_suit),
+                  size = 1) +
+  theme_bw() +
+  theme(strip.text = element_text(face = "italic"),
+        legend.position = "right") +
+  labs(
+    x = "Suitability score",
+    y = "Latitude range",
+    color = "Climate scenario"
+  ) +
+  scale_color_manual(
+    name = "Climate scenario",
+    values = c("suitability_current" = current_colour,
+               "suitability_future"  = future_colour),
+    labels = c("suitability_current" = "Current",
+               "suitability_future"  = "Future (2100)")
+  ) +
+  scale_y_discrete(
+    labels = c(
+      "(49.9,52]"   = "49.9 to 52°N",
+      "(52,54.2]"   = "52 to 54.2°N",
+      "(54.2,56.4]" = "54.2 to 56.4°N",
+      "(56.4,58.6]" = "56.4 to 58.6°N",
+      "(58.6,60.7]" = "58.6 to 60.7°N"
+    )) + xlim(0,1)
+
+Lat_bin_line_plot_CM
 ```
 
 ```{r}
@@ -4210,13 +4316,48 @@ forecast_plot <- plot_grid(
   Lat_bin_line_plot,
   ncol = 2,
   labels = c("", "c"),   # leave top row labels intact, label only bottom plot
-  rel_widths = c(1, 1.5)# adjust if you want the line plot taller/shorter
+  rel_widths = c(1, 1.5) # adjust if you want the line plot taller/shorter
 )
 
 forecast_plot
                            
 # Save the plot
 ggsave(forecast_plot, filename = "Figures/forecast_plot.png", width =10, height = 8, dpi = 300)
+```
+
+```{r}
+#| label: plot-forecast-with-better-layout
+
+library(cowplot)
+
+# Left-aligned species labels
+sb_label <- ggdraw() + 
+  draw_label("Semibalanus balanoides", 
+             fontface = "italic", 
+             size = 14,
+             hjust = 0,      # left-aligned
+             x = 0.02)       # move slightly from edge
+
+cm_label <- ggdraw() + 
+  draw_label("Chthamalus montagui", 
+             fontface = "italic", 
+             size = 14,
+             hjust = 0, 
+             x = 0.02)
+
+# Combine rows with labels (same layout as before)
+forecast_plot_2 <- plot_grid(
+  sb_label, row_sb,
+  cm_label, row_cm,
+  ncol = 1,
+  rel_heights = c(0.08, 1, 0.08, 1),
+  rel_widths = c(0.7, 1)
+)
+
+forecast_plot_2
+
+# Save
+ggsave(forecast_plot_2, filename = "Figures/forecast_plot2.png", width = 14, height = 8, dpi = 300)
 ```
 
 ### Plots for write-up
