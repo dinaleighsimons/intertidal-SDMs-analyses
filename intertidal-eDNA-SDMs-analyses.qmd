@@ -3633,6 +3633,7 @@ plot(future_semibalanus_combined_masked)
 ```
 
 ```{r}
+#| label: semibalanus-combined-future_plot
 
 # Choose the first layer
 r_layer <- future_semibalanus_combined_masked[[1]] 
@@ -3752,6 +3753,8 @@ plot(future_chthamalus_visual_masked)
 ```
 
 ```{r}
+#| label: chthamalus-visual-future-plot
+
 # Choose the first layer
 r_layer <- future_chthamalus_visual_masked[[1]] 
 
@@ -3868,6 +3871,7 @@ plot(future_chthamalus_combined_masked)
 ```
 
 ```{r}
+#| label: chthamalus-combined-future-plot
 
 # Choose the first layer
 r_layer <- future_chthamalus_combined_masked[[1]] 
