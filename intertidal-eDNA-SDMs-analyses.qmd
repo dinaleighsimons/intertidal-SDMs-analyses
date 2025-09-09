@@ -2482,12 +2482,6 @@ SB_assessment_plot
 ggsave(SB_assessment_plot, filename = "Figures/SB_assessment_plot.png", width = 12, height = 15, dpi = 300)
 ```
 
-#### Semibalanus response curve plots
-
-```{r}
-
-```
-
 #### Model 3 (Chthamalus - visual)
 
 ```{r}
@@ -3436,6 +3430,57 @@ current_projections_plot
 
 # Save the plot
 ggsave(current_projections_plot, filename = "Figures/current_projections_plot.png", width = 15, height = 13, dpi = 300)
+
+# with labels
+
+# Left-aligned species labels
+sb_label <- ggdraw() + 
+  draw_label("Semibalanus balanoides", 
+             fontface = "italic", 
+             size = 14,
+             hjust = 0,      # left-aligned
+             x = 0.02)       # move slightly from edge
+
+cm_label <- ggdraw() + 
+  draw_label("Chthamalus montagui", 
+             fontface = "italic", 
+             size = 14,
+             hjust = 0, 
+             x = 0.02)
+
+#top row
+SB_row <- plot_grid(
+  semibalanus_visual_current_plot_TSS,
+  semibalanus_combined_current_plot_TSS,
+  SB_diff_plot,
+  ncol = 3,
+  labels = c("a) GBIF-only", "b) GBIF-eDNA", "c) Difference"),
+  align = "hv"
+)
+
+#bottom row
+CM_row <- plot_grid(
+  chthamalus_visual_current_plot_TSS,
+  chthamalus_combined_current_plot_TSS, 
+  CM_diff_plot,
+  ncol = 3,
+  labels = c("d) GBIF-only", "e) GBIF-eDNA", "f) Difference"),
+  align = "hv"
+)
+
+
+# Combine rows with labels (same layout as before)
+current_plot_2 <- plot_grid(
+  sb_label, SB_row,
+  cm_label, CM_row,
+  ncol = 1,
+  rel_heights = c(0.08, 1, 0.08, 1)
+)
+
+current_plot_2
+
+# Save the plot
+ggsave(current_plot_2, filename = "Figures/current_plot_2.png", width = 15, height = 13, dpi = 300)
 ```
 
 ### Forecasting change
@@ -4328,8 +4373,6 @@ ggsave(forecast_plot, filename = "Figures/forecast_plot.png", width =10, height 
 ```{r}
 #| label: plot-forecast-with-better-layout
 
-library(cowplot)
-
 # Left-aligned species labels
 sb_label <- ggdraw() + 
   draw_label("Semibalanus balanoides", 
@@ -4351,13 +4394,13 @@ forecast_plot_2 <- plot_grid(
   cm_label, row_cm,
   ncol = 1,
   rel_heights = c(0.08, 1, 0.08, 1),
-  rel_widths = c(0.7, 1)
+  rel_widths = c(0.3, 1)
 )
 
 forecast_plot_2
 
 # Save
-ggsave(forecast_plot_2, filename = "Figures/forecast_plot2.png", width = 14, height = 8, dpi = 300)
+ggsave(forecast_plot_2, filename = "Figures/forecast_plot2.png", width = 11, height = 8, dpi = 300)
 ```
 
 ### Plots for write-up
@@ -4839,3 +4882,259 @@ vars_boxplot_individual
 
 ggsave(vars_boxplot_individual, file = "Figures/vars_boxplot_individual.png", height = 9, width = 7, dpi = 300)
 ```
+
+#### Response curve pots
+
+```{r}
+#| label: SB-visual-response-curve
+
+# semibalanus - visual
+
+response_mean_SB_visual <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_visual, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_SB_visual <- response_mean_SB_visual$tab
+
+response_mean_SB_visual_ensemble <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_visual, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_SB_visual_ensemble <- response_mean_SB_visual_ensemble$tab
+tab_mean_SB_visual_ensemble_reduced <- tab_mean_SB_visual_ensemble %>% 
+  filter(pred.name == "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo")
+
+tab_mean_SB_visual_reduced <- tab_mean_SB_visual %>% 
+  filter(pred.name == c("Semibalanus.balanoides_allData_allRun_GLM",
+                        "Semibalanus.balanoides_allData_allRun_MAXENT",
+                        "Semibalanus.balanoides_allData_allRun_RF",
+                        "Semibalanus.balanoides_allData_allRun_GAM"))
+
+tab_mean_SB_visual_reduced_add <- rbind(tab_mean_SB_visual_reduced, tab_mean_SB_visual_ensemble_reduced)
+
+plot_mean_SB_visual <- ggplot(
+  tab_mean_SB_visual_reduced_add,
+  aes(x = expl.val, y = pred.val, color = pred.name)
+) +
+  geom_line(linewidth = 1) +
+  facet_wrap(
+    ~expl.name,
+    scales = "free_x",
+    labeller = labeller(expl.name = c(
+      "ocean_temp" = "SST",
+      "ph"  = "pH",
+      "wave_fetch" = "Wave fetch"
+    ))
+  ) +
+  scale_color_manual(
+    values = c("Semibalanus.balanoides_allData_allRun_GAM" = "blue", 
+               "Semibalanus.balanoides_allData_allRun_GLM" = "red", 
+               "Semibalanus.balanoides_allData_allRun_RF" = "green", 
+               "Semibalanus.balanoides_allData_allRun_MAXENT" = "purple",
+    "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "black"),
+    labels = c("Semibalanus.balanoides_allData_allRun_GAM" = "GAM", 
+               "Semibalanus.balanoides_allData_allRun_GLM" = "GLM", 
+               "Semibalanus.balanoides_allData_allRun_RF" = "RF", 
+               "Semibalanus.balanoides_allData_allRun_MAXENT" = "MAXENT",
+               "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "Ensemble"),
+    name = "Model"
+  ) +
+  labs(x = "Predictor", y = "Response") +
+  theme_bw()
+
+plot_mean_SB_visual
+```
+
+```{r}
+#| label: SB-combined-response-curve
+
+# semibalanus - combined
+
+response_mean_SB_combined <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_semibalanus_combined, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_SB_combined <- response_mean_SB_combined$tab
+
+response_mean_SB_combined_ensemble <- bm_PlotResponseCurves(bm.out = myBiomodEM_semibalanus_combined, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_SB_combined_ensemble <- response_mean_SB_combined_ensemble$tab
+tab_mean_SB_combined_ensemble_reduced <- tab_mean_SB_combined_ensemble %>% 
+  filter(pred.name == "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo")
+
+tab_mean_SB_combined_reduced <- tab_mean_SB_combined %>% 
+  filter(pred.name == c("Semibalanus.balanoides_allData_allRun_GLM",
+                        "Semibalanus.balanoides_allData_allRun_MAXENT",
+                        "Semibalanus.balanoides_allData_allRun_RF",
+                        "Semibalanus.balanoides_allData_allRun_GAM"))
+
+tab_mean_SB_combined_reduced_add <- rbind(tab_mean_SB_combined_reduced, tab_mean_SB_combined_ensemble_reduced)
+
+plot_mean_SB_combined <- ggplot(
+  tab_mean_SB_combined_reduced_add,
+  aes(x = expl.val, y = pred.val, color = pred.name)
+) +
+  geom_line(linewidth = 1) +
+  facet_wrap(
+    ~expl.name,
+    scales = "free_x",
+    labeller = labeller(expl.name = c(
+      "ocean_temp" = "SST",
+      "ph"  = "pH",
+      "wave_fetch" = "Wave fetch"
+    ))
+  ) +
+  scale_color_manual(
+    values = c("Semibalanus.balanoides_allData_allRun_GAM" = "blue", 
+               "Semibalanus.balanoides_allData_allRun_GLM" = "red", 
+               "Semibalanus.balanoides_allData_allRun_RF" = "green", 
+               "Semibalanus.balanoides_allData_allRun_MAXENT" = "purple",
+    "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "black"),
+    labels = c("Semibalanus.balanoides_allData_allRun_GAM" = "GAM", 
+               "Semibalanus.balanoides_allData_allRun_GLM" = "GLM", 
+               "Semibalanus.balanoides_allData_allRun_RF" = "RF", 
+               "Semibalanus.balanoides_allData_allRun_MAXENT" = "MAXENT",
+               "Semibalanus.balanoides_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "Ensemble"),
+    name = "Model"
+  ) +
+  labs(x = "Predictor", y = "Response") +
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_mean_SB_combined
+```
+
+```{r}
+#| label: CM-visual-response-curve
+
+# chthamalus - visual
+
+response_mean_CM_visual <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_visual, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_CM_visual <- response_mean_CM_visual$tab
+
+response_mean_CM_visual_ensemble <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_visual, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_CM_visual_ensemble <- response_mean_CM_visual_ensemble$tab
+tab_mean_CM_visual_ensemble_reduced <- tab_mean_CM_visual_ensemble %>% 
+  filter(pred.name == "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo")
+
+tab_mean_CM_visual_reduced <- tab_mean_CM_visual %>% 
+  filter(pred.name == c("Chthamalus.montagui_allData_allRun_GLM",
+                        "Chthamalus.montagui_allData_allRun_MAXENT",
+                        "Chthamalus.montagui_allData_allRun_RF",
+                        "Chthamalus.montagui_allData_allRun_GAM"))
+
+tab_mean_CM_visual_reduced_add <- rbind(tab_mean_CM_visual_reduced, tab_mean_CM_visual_ensemble_reduced)
+
+plot_mean_CM_visual <- ggplot(
+  tab_mean_CM_visual_reduced_add,
+  aes(x = expl.val, y = pred.val, color = pred.name)
+) +
+  geom_line(linewidth = 1) +
+  facet_wrap(
+    ~expl.name,
+    scales = "free_x",
+    labeller = labeller(expl.name = c(
+      "ocean_temp" = "SST",
+      "ph"  = "pH",
+      "wave_fetch" = "Wave fetch"
+    ))
+  ) +
+  scale_color_manual(
+    values = c("Chthamalus.montagui_allData_allRun_GAM" = "blue", 
+               "Chthamalus.montagui_allData_allRun_GLM" = "red", 
+               "Chthamalus.montagui_allData_allRun_RF" = "green", 
+               "Chthamalus.montagui_allData_allRun_MAXENT" = "purple",
+    "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "black"),
+    labels = c("Chthamalus.montagui_allData_allRun_GAM" = "GAM", 
+               "Chthamalus.montagui_allData_allRun_GLM" = "GLM", 
+               "Chthamalus.montagui_allData_allRun_RF" = "RF", 
+               "Chthamalus.montagui_allData_allRun_MAXENT" = "MAXENT",
+               "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "Ensemble"),
+    name = "Model"
+  ) +
+  labs(x = "Predictor", y = "Response") +
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_mean_CM_visual
+```
+
+```{r}
+#| label: CM-combined-response-curve
+
+# chthamalus - combined
+
+response_mean_CM_combined <- bm_PlotResponseCurves(bm.out = myBiomodModelOut_chthamalus_combined, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_CM_combined <- response_mean_CM_combined$tab
+
+response_mean_CM_combined_ensemble <- bm_PlotResponseCurves(bm.out = myBiomodEM_chthamalus_combined, 
+                      models.chosen = "all",
+                      fixed.var = 'mean')
+tab_mean_CM_combined_ensemble <- response_mean_CM_combined_ensemble$tab
+tab_mean_CM_combined_ensemble_reduced <- tab_mean_CM_combined_ensemble %>% 
+  filter(pred.name == "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo")
+
+tab_mean_CM_combined_reduced <- tab_mean_CM_combined %>% 
+  filter(pred.name == c("Chthamalus.montagui_allData_allRun_GLM",
+                        "Chthamalus.montagui_allData_allRun_MAXENT",
+                        "Chthamalus.montagui_allData_allRun_RF",
+                        "Chthamalus.montagui_allData_allRun_GAM"))
+
+tab_mean_CM_combined_reduced_add <- rbind(tab_mean_CM_combined_reduced, tab_mean_CM_combined_ensemble_reduced)
+
+plot_mean_CM_combined <- ggplot(
+  tab_mean_CM_combined_reduced_add,
+  aes(x = expl.val, y = pred.val, color = pred.name)
+) +
+  geom_line(linewidth = 1) +
+  facet_wrap(
+    ~expl.name,
+    scales = "free_x",
+    labeller = labeller(expl.name = c(
+      "ocean_temp" = "SST",
+      "ph"  = "pH",
+      "wave_fetch" = "Wave fetch"
+    ))
+  ) +
+  scale_color_manual(
+    values = c("Chthamalus.montagui_allData_allRun_GAM" = "blue", 
+               "Chthamalus.montagui_allData_allRun_GLM" = "red", 
+               "Chthamalus.montagui_allData_allRun_RF" = "green", 
+               "Chthamalus.montagui_allData_allRun_MAXENT" = "purple",
+    "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "black"),
+    labels = c("Chthamalus.montagui_allData_allRun_GAM" = "GAM", 
+               "Chthamalus.montagui_allData_allRun_GLM" = "GLM", 
+               "Chthamalus.montagui_allData_allRun_RF" = "RF", 
+               "Chthamalus.montagui_allData_allRun_MAXENT" = "MAXENT",
+               "Chthamalus.montagui_EMmeanByROC_mergedData_mergedRun_mergedAlgo" = "Ensemble"),
+    name = "Model"
+  ) +
+  labs(x = "Predictor", y = "Response") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+plot_mean_CM_combined
+```
+
+```{r}
+#| label: response-curves-together
+
+response_curves_together <- plot_grid(plot_mean_SB_visual,
+                                      plot_mean_SB_combined,
+                                      plot_mean_CM_visual,
+                                      plot_mean_CM_combined,
+                                      labels = c("a", "b", "c", "d"),
+                                      ncol = 1,
+                                      align = "hv")
+response_curves_together
+
+ggsave(response_curves_together, file = "Figures/response_curves_together.png", height = 12, width = 10, dpi = 300)
+```
+
+## Concluding remarks
+
+We have now produced all the analyses for chapter 4.
