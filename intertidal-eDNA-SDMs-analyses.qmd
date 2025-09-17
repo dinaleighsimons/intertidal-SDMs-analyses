@@ -4391,6 +4391,24 @@ cm_label <- ggdraw() +
              size = 14,
              hjust = 0, 
              x = 0.02)
+#top row
+row_sb <- plot_grid(
+  SB_diff_plot_future,
+  Lat_bin_line_plot_SB,
+  ncol = 2,
+  labels = c("a", "b"),
+  align = "hv"
+)
+
+#bottom row
+row_cm <- plot_grid(
+  CM_diff_plot_future,
+  Lat_bin_line_plot_CM,
+  ncol = 2,
+  labels = c("c", "d"),
+  align = "hv"
+)
+
 
 # Combine rows with labels (same layout as before)
 forecast_plot_2 <- plot_grid(
